@@ -67,9 +67,9 @@ public sealed class PdfPageAnalysis
 
     public double Height { get; init; }
 
-    public bool HasText { get; init; }
+    public bool HasText { get; set; }
 
-    public bool IsLikelyScanned { get; init; }
+    public bool IsLikelyScanned { get; set; }
 
     public List<PdfWord> Words { get; } = [];
 

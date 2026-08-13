@@ -3,6 +3,7 @@ using System.Globalization;
 using System.IO;
 using System.Windows.Input;
 using PdfToAzw3.Core.Models;
+using PdfToAzw3.Core.Services;
 using PdfToAzw3.Desktop.Services;
 
 namespace PdfToAzw3.Desktop.ViewModels;
@@ -21,7 +22,10 @@ public sealed class ChapterListItem(string title, int level, int pageNumber) : O
 public sealed class MainViewModel : ObservableObject
 {
     private readonly IFileDialogService _fileDialogService;
+    private readonly IPdfDocumentReader _pdfDocumentReader;
     private PdfFileInfo? _inputFile;
+    private PdfAnalysisResult? _analysisResult;
+    private CancellationTokenSource? _conversionCancellation;
     private string _statusMessage = "Kéo thả một tệp PDF để bắt đầu.";
     private string _progressStage = "Đang chờ tệp PDF";
     private double _progressValue;
@@ -29,9 +33,10 @@ public sealed class MainViewModel : ObservableObject
     private bool _isAnalyzed;
     private string? _errorMessage;
 
-    public MainViewModel(IFileDialogService fileDialogService)
+    public MainViewModel(IFileDialogService fileDialogService, IPdfDocumentReader? pdfDocumentReader = null)
     {
         _fileDialogService = fileDialogService;
+        _pdfDocumentReader = pdfDocumentReader ?? PdfPipelineFactory.CreateDefaultReader();
         Metadata = new BookMetadata();
         Options = new ConversionOptions();
         Summary = new AnalysisSummary();
@@ -39,11 +44,14 @@ public sealed class MainViewModel : ObservableObject
 
         ChoosePdfCommand = new RelayCommand(ChoosePdf);
         ClearPdfCommand = new RelayCommand(ClearPdf, () => HasInputFile);
-        AnalyzeCommand = new RelayCommand(() => StatusMessage = "Pipeline phân tích sẽ được kích hoạt ở milestone kế tiếp.", () => HasInputFile && !IsBusy);
+        _analyzeCommand = new AsyncRelayCommand(AnalyzeAsync, () => HasInputFile && !IsBusy);
+        AnalyzeCommand = _analyzeCommand;
         PreviewCommand = new RelayCommand(() => StatusMessage = "Hãy phân tích PDF trước khi xem preview.", () => IsAnalyzed && !IsBusy);
         ConvertCommand = new RelayCommand(() => StatusMessage = "Hãy phân tích PDF trước khi chuyển đổi.", () => IsAnalyzed && !IsBusy);
-        CancelCommand = new RelayCommand(() => StatusMessage = "Không có tác vụ đang chạy.", () => IsBusy);
+        CancelCommand = new RelayCommand(CancelAnalysis, () => IsBusy);
     }
+
+    private readonly AsyncRelayCommand _analyzeCommand;
 
     public BookMetadata Metadata { get; }
 
@@ -157,6 +165,83 @@ public sealed class MainViewModel : ObservableObject
         }
     }
 
+    private async Task AnalyzeAsync()
+    {
+        if (InputFile is null)
+        {
+            return;
+        }
+
+        ErrorMessage = null;
+        IsBusy = true;
+        IsAnalyzed = false;
+        ProgressValue = 0;
+        ProgressStage = "Loading PDF";
+        StatusMessage = "Đang mở PDF...";
+        _conversionCancellation?.Dispose();
+        _conversionCancellation = new CancellationTokenSource();
+
+        try
+        {
+            var progress = new Progress<ConversionProgress>(UpdateProgress);
+            var result = await _pdfDocumentReader.AnalyzeAsync(
+                InputFile.FullPath,
+                Metadata,
+                Options,
+                progress,
+                _conversionCancellation.Token);
+
+            _analysisResult = result;
+            InputFile = result.File;
+            Summary = result.Summary;
+            OnPropertyChanged(nameof(Summary));
+            Chapters.Clear();
+            foreach (var chapter in result.Book.Chapters)
+            {
+                Chapters.Add(new ChapterListItem(chapter.Title, chapter.Level, chapter.SourcePageNumber));
+            }
+
+            IsAnalyzed = true;
+            ProgressValue = 1;
+            ProgressStage = "Analysis complete";
+            StatusMessage = $"Đã phân tích {result.Summary.Pages:N0} trang với chất lượng {result.Summary.Quality.Score}/100.";
+            if (result.Warnings.Count > 0)
+            {
+                ErrorMessage = string.Join(Environment.NewLine, result.Warnings.Select(warning => $"• {warning.Message}"));
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            ProgressStage = "Đã hủy";
+            StatusMessage = "Phân tích đã được hủy.";
+        }
+        catch (Exception exception)
+        {
+            ErrorMessage = $"Không thể phân tích PDF: {exception.Message}";
+            ProgressStage = "Analysis failed";
+            StatusMessage = "Đã xảy ra lỗi khi phân tích PDF.";
+        }
+        finally
+        {
+            IsBusy = false;
+            _conversionCancellation?.Dispose();
+            _conversionCancellation = null;
+        }
+    }
+
+    private void UpdateProgress(ConversionProgress progress)
+    {
+        ProgressStage = progress.Stage;
+        ProgressValue = Math.Clamp(progress.Fraction, 0, 1);
+        StatusMessage = progress.Detail ?? progress.Stage;
+    }
+
+    private void CancelAnalysis()
+    {
+        _conversionCancellation?.Cancel();
+        StatusMessage = "Đang dừng phân tích...";
+    }
+
     public bool TryLoadPdf(string path)
     {
         ErrorMessage = null;
@@ -186,6 +271,7 @@ public sealed class MainViewModel : ObservableObject
         OnPropertyChanged(nameof(Summary));
         Chapters.Clear();
         IsAnalyzed = false;
+        _analysisResult = null;
         ProgressValue = 0;
         ProgressStage = "Sẵn sàng phân tích";
         StatusMessage = "Tệp PDF đã sẵn sàng. Hãy chọn Analyze.";
@@ -194,7 +280,9 @@ public sealed class MainViewModel : ObservableObject
 
     private void ClearPdf()
     {
+        _conversionCancellation?.Cancel();
         InputFile = null;
+        _analysisResult = null;
         Chapters.Clear();
         IsAnalyzed = false;
         ProgressValue = 0;
@@ -215,7 +303,7 @@ public sealed class MainViewModel : ObservableObject
     private void RaiseCommandStates()
     {
         (ClearPdfCommand as RelayCommand)?.RaiseCanExecuteChanged();
-        (AnalyzeCommand as RelayCommand)?.RaiseCanExecuteChanged();
+        _analyzeCommand.RaiseCanExecuteChanged();
         (PreviewCommand as RelayCommand)?.RaiseCanExecuteChanged();
         (ConvertCommand as RelayCommand)?.RaiseCanExecuteChanged();
         (CancelCommand as RelayCommand)?.RaiseCanExecuteChanged();
