@@ -40,12 +40,18 @@ public sealed class EpubBuilder : IEpubBuilder
         WriteEntry(archive, "mimetype", "application/epub+zip", CompressionLevel.NoCompression);
         WriteEntry(archive, "META-INF/container.xml", ContainerXml);
         WriteEntry(archive, "OEBPS/styles/book.css", BuildCss(options));
+        WriteEntry(archive, "OEBPS/styles/fixed-layout.css", FixedLayoutCss);
         var resources = book.Resources.ToList();
         var cover = CreateCoverResource(book.Metadata);
         if (cover is not null)
         {
             resources.Insert(0, cover);
             WriteEntry(archive, $"OEBPS/images/{cover.FileName}", cover.Content, CompressionLevel.Optimal);
+        }
+
+        if (options.Profile == ConversionProfile.FixedLayout)
+        {
+            return BuildFixedLayoutEpub(archive, book, book.Metadata, resources, cover, fullPath, progress, cancellationToken);
         }
 
         var chapters = book.Chapters.Count == 0
@@ -78,6 +84,125 @@ public sealed class EpubBuilder : IEpubBuilder
 
         progress?.Report(new ConversionProgress("EPUB built", 0.93, Detail: fullPath));
         return fullPath;
+    }
+
+    private static string BuildFixedLayoutEpub(
+        ZipArchive archive,
+        BookDocument book,
+        BookMetadata metadata,
+        IReadOnlyList<BookResource> resources,
+        BookResource? cover,
+        string fullPath,
+        IProgress<ConversionProgress>? progress,
+        CancellationToken cancellationToken)
+    {
+        if (book.FixedLayoutPages.Count == 0)
+        {
+            throw new InvalidDataException("Fixed Layout chưa có ảnh raster cho từng trang PDF.");
+        }
+
+        var pages = book.FixedLayoutPages
+            .OrderBy(page => page.PageNumber)
+            .ToArray();
+        var pagePaths = new List<(FixedLayoutPage Page, string Path, string Id)>();
+        for (var index = 0; index < pages.Length; index++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var page = pages[index];
+            var pagePath = $"OEBPS/text/page{page.PageNumber:0000}.xhtml";
+            var pageId = $"page-{page.PageNumber:0000}";
+            pagePaths.Add((page, pagePath, pageId));
+            WriteEntry(archive, pagePath, BuildFixedPageXhtml(page, metadata));
+            progress?.Report(new ConversionProgress(
+                "Building Fixed Layout EPUB",
+                0.82 + 0.08 * (index + 1) / pages.Length,
+                page.PageNumber,
+                pages.Length,
+                $"Đang dựng trang cố định {page.PageNumber:N0} / {pages.Length:N0}"));
+        }
+
+        WriteEntry(archive, "OEBPS/nav.xhtml", BuildFixedNavigation(metadata, pagePaths));
+        WriteEntry(archive, "OEBPS/toc.ncx", BuildFixedNcx(metadata, pagePaths));
+        WriteEntry(archive, "OEBPS/content.opf", BuildFixedContentOpf(metadata, pagePaths, resources, cover));
+
+        foreach (var resource in resources.Where(resource => cover is null || !ReferenceEquals(resource, cover)))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            WriteEntry(archive, $"OEBPS/images/{resource.FileName}", resource.Content, CompressionLevel.Optimal);
+        }
+
+        progress?.Report(new ConversionProgress("EPUB built", 0.93, Detail: fullPath));
+        return fullPath;
+    }
+
+    private static string BuildFixedPageXhtml(FixedLayoutPage page, BookMetadata metadata)
+    {
+        var language = DetectLanguage(metadata);
+        return $"<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<html xmlns=\"http://www.w3.org/1999/xhtml\" lang=\"{language}\" xml:lang=\"{language}\"><head><title>Trang {page.PageNumber}</title><meta name=\"viewport\" content=\"width={page.PixelWidth}, height={page.PixelHeight}\" /><link rel=\"stylesheet\" type=\"text/css\" href=\"../styles/fixed-layout.css\" /></head><body id=\"page-{page.PageNumber}\"><img src=\"../images/{EscapeAttribute(page.FileName)}\" width=\"{page.PixelWidth}\" height=\"{page.PixelHeight}\" alt=\"Trang {page.PageNumber}\" /></body></html>";
+    }
+
+    private static string BuildFixedNavigation(
+        BookMetadata metadata,
+        IReadOnlyList<(FixedLayoutPage Page, string Path, string Id)> pages)
+    {
+        var builder = new StringBuilder($"<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<html xmlns=\"http://www.w3.org/1999/xhtml\" xmlns:epub=\"http://www.idpf.org/2007/ops\" lang=\"{DetectLanguage(metadata)}\"><head><title>Contents</title></head><body><nav epub:type=\"toc\" id=\"toc\"><h1>Pages</h1><ol>\n");
+        foreach (var item in pages)
+        {
+            builder.Append($"<li><a href=\"text/{Path.GetFileName(item.Path)}#page-{item.Page.PageNumber}\">Trang {item.Page.PageNumber}</a></li>\n");
+        }
+
+        builder.Append("</ol></nav></body></html>");
+        return builder.ToString();
+    }
+
+    private static string BuildFixedNcx(
+        BookMetadata metadata,
+        IReadOnlyList<(FixedLayoutPage Page, string Path, string Id)> pages)
+    {
+        var builder = new StringBuilder($"<?xml version=\"1.0\" encoding=\"UTF-8\"?><ncx xmlns=\"http://www.daisy.org/z3986/2005/ncx/\" version=\"2005-1\"><head><meta name=\"dtb:uid\" content=\"book-id\" /></head><docTitle><text>{Escape(metadata.Title)}</text></docTitle><navMap>");
+        for (var index = 0; index < pages.Count; index++)
+        {
+            var item = pages[index];
+            builder.Append($"<navPoint id=\"{item.Id}\" playOrder=\"{index + 1}\"><navLabel><text>Trang {item.Page.PageNumber}</text></navLabel><content src=\"text/{Path.GetFileName(item.Path)}#page-{item.Page.PageNumber}\" /></navPoint>");
+        }
+
+        builder.Append("</navMap></ncx>");
+        return builder.ToString();
+    }
+
+    private static string BuildFixedContentOpf(
+        BookMetadata metadata,
+        IReadOnlyList<(FixedLayoutPage Page, string Path, string Id)> pages,
+        IReadOnlyList<BookResource> resources,
+        BookResource? cover)
+    {
+        var modified = DateTimeOffset.UtcNow.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", System.Globalization.CultureInfo.InvariantCulture);
+        var builder = new StringBuilder($"<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<package xmlns=\"http://www.idpf.org/2007/opf\" prefix=\"rendition: http://www.idpf.org/vocab/rendition/#\" unique-identifier=\"book-id\" version=\"3.0\"><metadata xmlns:dc=\"http://purl.org/dc/elements/1.1/\"><dc:identifier id=\"book-id\">urn:uuid:pdf-to-azw3</dc:identifier><dc:title>{Escape(metadata.Title)}</dc:title><dc:creator>{Escape(metadata.Author)}</dc:creator><dc:language>{DetectLanguage(metadata)}</dc:language><dc:publisher>{Escape(metadata.Publisher)}</dc:publisher><dc:description>{Escape(metadata.Description)}</dc:description><meta property=\"dcterms:modified\">{modified}</meta><meta property=\"rendition:layout\">pre-paginated</meta><meta property=\"rendition:orientation\">auto</meta><meta property=\"rendition:spread\">auto</meta>");
+        if (cover is not null)
+        {
+            builder.Append("<meta name=\"cover\" content=\"cover-image\" />");
+        }
+
+        builder.Append("</metadata><manifest><item id=\"nav\" properties=\"nav\" href=\"nav.xhtml\" media-type=\"application/xhtml+xml\" /><item id=\"ncx\" href=\"toc.ncx\" media-type=\"application/x-dtbncx+xml\" /><item id=\"fixed-css\" href=\"styles/fixed-layout.css\" media-type=\"text/css\" />");
+        foreach (var item in pages)
+        {
+            builder.Append($"<item id=\"{item.Id}\" href=\"text/{Path.GetFileName(item.Path)}\" media-type=\"application/xhtml+xml\" />");
+        }
+
+        foreach (var resource in resources)
+        {
+            var properties = cover is not null && ReferenceEquals(resource, cover) ? " properties=\"cover-image\"" : string.Empty;
+            builder.Append($"<item id=\"{EscapeAttribute(resource.Id)}\"{properties} href=\"images/{EscapeAttribute(resource.FileName)}\" media-type=\"{EscapeAttribute(resource.MediaType)}\" />");
+        }
+
+        builder.Append("</manifest><spine toc=\"ncx\" page-progression-direction=\"ltr\">");
+        foreach (var item in pages)
+        {
+            builder.Append($"<itemref idref=\"{item.Id}\" />");
+        }
+
+        builder.Append("</spine></package>");
+        return builder.ToString();
     }
 
     private static string BuildChapterXhtml(BookChapter chapter, BookMetadata metadata, ConversionOptions options, int chapterIndex)
@@ -323,4 +448,6 @@ public sealed class EpubBuilder : IEpubBuilder
     }
 
     private const string ContainerXml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><container version=\"1.0\" xmlns=\"urn:oasis:names:tc:opendocument:xmlns:container\"><rootfiles><rootfile full-path=\"OEBPS/content.opf\" media-type=\"application/oebps-package+xml\" /></rootfiles></container>";
+
+    private const string FixedLayoutCss = "html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #fff; } body { display: flex; align-items: flex-start; justify-content: flex-start; } img { display: block; width: 100%; height: 100%; object-fit: contain; }";
 }

@@ -106,6 +106,14 @@ public sealed class ConversionOptions
 
     public bool EnableOcrFallback { get; set; }
 
+    public string OcrLanguage { get; set; } = "Auto";
+
+    public int OcrDpi { get; set; } = 200;
+
+    public double OcrConfidenceThreshold { get; set; } = 0.45;
+
+    public int FixedLayoutDpi { get; set; } = 150;
+
     public string? CalibreExecutablePath { get; set; }
 }
 
@@ -124,6 +132,8 @@ public sealed class AnalysisSummary
     public int PageNumbersRemoved { get; set; }
 
     public int Paragraphs { get; set; }
+
+    public int OcrPages { get; set; }
 
     public PdfDocumentKind DocumentKind { get; set; }
 

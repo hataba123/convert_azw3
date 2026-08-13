@@ -69,7 +69,13 @@ public sealed class PdfPageAnalysis
 
     public bool HasText { get; set; }
 
+    public bool HasNativeText { get; set; }
+
     public bool IsLikelyScanned { get; set; }
+
+    public bool OcrApplied { get; set; }
+
+    public double OcrConfidence { get; set; }
 
     public List<PdfWord> Words { get; } = [];
 

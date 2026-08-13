@@ -6,7 +6,8 @@ public sealed class EbookConversionService(
     IEpubBuilder epubBuilder,
     IEpubValidator epubValidator,
     ICalibreService calibreService,
-    IAppLogger? logger = null) : IEbookConversionService
+    IAppLogger? logger = null,
+    IFixedLayoutPageBuilder? fixedLayoutPageBuilder = null) : IEbookConversionService
 {
     public async Task<ConversionOutput> ConvertAsync(
         PdfAnalysisResult analysis,
@@ -20,6 +21,22 @@ public sealed class EbookConversionService(
         logger?.Info($"Conversion started: epub={epubPath}, azw3={fullAzw3Path}");
         try
         {
+            if (options.Profile == ConversionProfile.FixedLayout)
+            {
+                if (fixedLayoutPageBuilder is null)
+                {
+                    throw new InvalidOperationException("Fixed Layout renderer chưa được cấu hình.");
+                }
+
+                await fixedLayoutPageBuilder.PrepareAsync(
+                    analysis.File.FullPath,
+                    analysis.Pages,
+                    analysis.Book,
+                    options.FixedLayoutDpi,
+                    progress,
+                    cancellationToken).ConfigureAwait(false);
+            }
+
             await epubBuilder.BuildAsync(analysis.Book, options, epubPath, progress, cancellationToken).ConfigureAwait(false);
 
             progress?.Report(new ConversionProgress("Validating EPUB", 0.935, Detail: "Kiểm tra EPUB trung gian"));

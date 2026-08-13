@@ -19,6 +19,17 @@ public interface IEpubValidator
 
 public sealed record EpubValidationResult(bool IsValid, IReadOnlyList<string> Errors);
 
+public interface IFixedLayoutPageBuilder
+{
+    Task PrepareAsync(
+        string pdfPath,
+        IReadOnlyList<PdfPageAnalysis> pages,
+        BookDocument book,
+        int dpi,
+        IProgress<ConversionProgress>? progress = null,
+        CancellationToken cancellationToken = default);
+}
+
 public interface ICalibreService
 {
     string? FindExecutable(string? configuredPath = null);

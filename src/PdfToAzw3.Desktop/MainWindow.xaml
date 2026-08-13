@@ -165,6 +165,12 @@
                                         <ComboBoxItem Content="Document — có khoảng cách" Tag="Document" />
                                         <ComboBoxItem Content="Compact — gọn" Tag="Compact" />
                                     </ComboBox>
+                                    <TextBlock Margin="0,18,0,0" Style="{StaticResource CaptionText}" Text="Ngôn ngữ OCR" />
+                                    <ComboBox Margin="0,5,0,0" SelectedValue="{Binding Options.OcrLanguage, Mode=TwoWay}" SelectedValuePath="Tag">
+                                        <ComboBoxItem Content="Tự động theo Windows" Tag="Auto" />
+                                        <ComboBoxItem Content="Tiếng Việt" Tag="vi-VN" />
+                                        <ComboBoxItem Content="English" Tag="en-US" />
+                                    </ComboBox>
                                     <TextBlock Margin="0,16,0,0" Style="{StaticResource CaptionText}" Text="Calibre executable" />
                                     <TextBlock Margin="0,4,0,0" FontSize="11" Text="{Binding CalibrePath}" TextTrimming="CharacterEllipsis" />
                                 </StackPanel>
@@ -178,12 +184,14 @@
                                         <CheckBox Content="Xóa header lặp lại" IsChecked="{Binding Options.RemoveRepeatedHeaders}" />
                                         <CheckBox Content="Xóa footer lặp lại" IsChecked="{Binding Options.RemoveRepeatedFooters}" />
                                         <CheckBox Content="Xóa số trang" IsChecked="{Binding Options.RemovePageNumbers}" />
+                                        <CheckBox Margin="0,4,0,0" Content="Bật OCR cho trang scan" IsChecked="{Binding Options.EnableOcrFallback}" />
                                     </StackPanel>
                                     <StackPanel Grid.Column="1">
                                         <CheckBox Content="Sửa từ bị ngắt dòng" IsChecked="{Binding Options.RepairHyphenatedWords}" />
                                         <CheckBox Content="Tạo Table of Contents" IsChecked="{Binding Options.GenerateTableOfContents}" />
                                         <CheckBox Content="Giữ hình ảnh" IsChecked="{Binding Options.PreserveImages}" />
                                         <CheckBox Content="Tự nhận diện chapter" IsChecked="{Binding Options.DetectChapters}" />
+                                        <TextBlock Margin="0,10,0,0" Style="{StaticResource CaptionText}" Text="Fixed Layout sẽ rasterize từng trang PDF." TextWrapping="Wrap" />
                                     </StackPanel>
                                 </Grid>
                             </Grid>
@@ -200,12 +208,14 @@
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
                                 </Grid.ColumnDefinitions>
                                 <StackPanel Grid.Column="0"><TextBlock Style="{StaticResource CaptionText}" Text="Pages" /><TextBlock Margin="0,4,0,0" FontSize="21" FontWeight="SemiBold" Text="{Binding Summary.Pages}" /></StackPanel>
                                 <StackPanel Grid.Column="1"><TextBlock Style="{StaticResource CaptionText}" Text="Chapters" /><TextBlock Margin="0,4,0,0" FontSize="21" FontWeight="SemiBold" Text="{Binding Summary.Chapters}" /></StackPanel>
                                 <StackPanel Grid.Column="2"><TextBlock Style="{StaticResource CaptionText}" Text="Paragraphs" /><TextBlock Margin="0,4,0,0" FontSize="21" FontWeight="SemiBold" Text="{Binding Summary.Paragraphs}" /></StackPanel>
                                 <StackPanel Grid.Column="3"><TextBlock Style="{StaticResource CaptionText}" Text="Images" /><TextBlock Margin="0,4,0,0" FontSize="21" FontWeight="SemiBold" Text="{Binding Summary.Images}" /></StackPanel>
-                                <StackPanel Grid.Column="4"><TextBlock Style="{StaticResource CaptionText}" Text="Quality" /><TextBlock Margin="0,4,0,0" FontSize="21" FontWeight="SemiBold" Foreground="{DynamicResource SuccessBrush}" Text="{Binding Summary.Quality.Score}" /></StackPanel>
+                                <StackPanel Grid.Column="4"><TextBlock Style="{StaticResource CaptionText}" Text="OCR pages" /><TextBlock Margin="0,4,0,0" FontSize="21" FontWeight="SemiBold" Text="{Binding Summary.OcrPages}" /></StackPanel>
+                                <StackPanel Grid.Column="5"><TextBlock Style="{StaticResource CaptionText}" Text="Quality" /><TextBlock Margin="0,4,0,0" FontSize="21" FontWeight="SemiBold" Foreground="{DynamicResource SuccessBrush}" Text="{Binding Summary.Quality.Score}" /></StackPanel>
                             </Grid>
                             <Border Margin="0,16,0,0" Padding="12" Background="{DynamicResource SurfaceMutedBrush}" CornerRadius="9">
                                 <StackPanel Orientation="Horizontal">

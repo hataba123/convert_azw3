@@ -8,6 +8,8 @@ public sealed class BookDocument
 
     public List<BookResource> Resources { get; } = [];
 
+    public List<FixedLayoutPage> FixedLayoutPages { get; } = [];
+
     public List<AnalysisWarning> Warnings { get; } = [];
 }
 
@@ -97,4 +99,17 @@ public sealed class BookResource
     public required string MediaType { get; init; }
 
     public required byte[] Content { get; init; }
+}
+
+public sealed class FixedLayoutPage
+{
+    public required int PageNumber { get; init; }
+
+    public required int PixelWidth { get; init; }
+
+    public required int PixelHeight { get; init; }
+
+    public required string ResourceId { get; init; }
+
+    public required string FileName { get; init; }
 }

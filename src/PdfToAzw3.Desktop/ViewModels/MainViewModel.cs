@@ -281,7 +281,9 @@ public sealed class MainViewModel : ObservableObject
             IsAnalyzed = true;
             ProgressValue = 1;
             ProgressStage = "Analysis complete";
-            StatusMessage = $"Đã phân tích {result.Summary.Pages:N0} trang với chất lượng {result.Summary.Quality.Score}/100.";
+            StatusMessage = result.Summary.OcrPages > 0
+                ? $"Đã phân tích {result.Summary.Pages:N0} trang với {result.Summary.OcrPages:N0} trang OCR; chất lượng {result.Summary.Quality.Score}/100."
+                : $"Đã phân tích {result.Summary.Pages:N0} trang với chất lượng {result.Summary.Quality.Score}/100.";
             if (result.Warnings.Count > 0)
             {
                 ErrorMessage = string.Join(Environment.NewLine, result.Warnings.Select(warning => $"• {warning.Message}"));
@@ -337,7 +339,9 @@ public sealed class MainViewModel : ObservableObject
         }
 
         PreviewContent = string.Join(Environment.NewLine, preview);
-        StatusMessage = "Preview đã dựng từ BookDocument semantic.";
+        StatusMessage = Options.Profile == ConversionProfile.FixedLayout
+            ? "Preview hiển thị BookDocument; khi Convert, Fixed Layout sẽ rasterize từng trang PDF."
+            : "Preview đã dựng từ BookDocument semantic.";
     }
 
     private async Task ConvertAsync()

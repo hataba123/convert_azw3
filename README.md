@@ -14,6 +14,7 @@ PDF
   → heading, chapter, table, code, footnote, image heuristics
   → BookDocument semantic model
   → XHTML + CSS
+  → (Fixed Layout: render PNG từng trang + pre-paginated EPUB)
   → validated EPUB
   → Calibre ebook-convert
   → AZW3
@@ -41,9 +42,12 @@ dotnet run --project src/PdfToAzw3.Desktop/PdfToAzw3.Desktop.csproj
 1. Chọn PDF hoặc kéo thả PDF vào cửa sổ.
 2. Kiểm tra title, author, language, description và cover.
 3. Chọn profile và paragraph style.
-4. Bấm **Analyze** để đọc glyph, phân tích layout và xem quality score/warnings.
-5. Bấm **Preview Ebook** để xem nội dung semantic đã phục hồi.
-6. Bấm **Convert to AZW3**. EPUB trung gian được tạo cạnh PDF, validate trước khi Calibre chạy; AZW3 mặc định dùng tên PDF.
+4. Nếu PDF là scan, bật **OCR fallback cho trang scan**, chọn ngôn ngữ nếu cần rồi bấm **Analyze**. Windows OCR cần language pack tương ứng.
+5. Bấm **Analyze** để đọc glyph, phân tích layout và xem quality score/warnings.
+6. Bấm **Preview Ebook** để xem nội dung semantic đã phục hồi.
+7. Bấm **Convert to AZW3**. EPUB trung gian được tạo cạnh PDF, validate trước khi Calibre chạy; AZW3 mặc định dùng tên PDF.
+
+Profile **Kindle Auto** ưu tiên BookDocument semantic/reflowable. Profile **Fixed Layout** render từng trang PDF thành PNG, tạo XHTML có viewport đúng kích thước trang và đánh dấu EPUB là `pre-paginated`; vì vậy file có thể lớn hơn đáng kể.
 
 Các tùy chọn header/footer/page number mặc định bật. Khi hủy, cancellation token được truyền xuyên pipeline và process Calibre do ứng dụng tạo sẽ được dừng theo process tree.
 
@@ -57,7 +61,8 @@ Test hiện bao phủ:
 - header/footer/page number lặp;
 - heading/chapter và table heuristic;
 - PdfPig đọc PDF thật;
-- EPUB XML/ZIP, navigation, code, footnote, image và cover resource.
+- EPUB XML/ZIP, navigation, code, footnote, image và cover resource;
+- OCR fallback qua abstraction và Fixed Layout rasterization từng trang.
 
 ## Log và output
 
@@ -67,7 +72,7 @@ Test hiện bao phủ:
 
 ## Giới hạn có chủ ý
 
-- OCR cho scanned/mixed PDF chưa tích hợp engine OCR trong bản này; ứng dụng sẽ nhận diện và cảnh báo thay vì tự tạo nội dung giả.
+- OCR fallback đã tích hợp Windows OCR cho trang không có native text. Nếu thiếu language pack hoặc OCR engine không khả dụng, ứng dụng vẫn giữ cảnh báo theo trang và không tạo text giả.
 - Heading, bảng, footnote, cột và header/footer dùng heuristic, nên warning cần được xem lại với PDF có layout bất thường.
-- Profile **Fixed Layout** giữ CSS ít reflow hơn nhưng chưa rasterize từng trang; profile **Kindle Auto** vẫn ưu tiên ebook semantic/reflowable.
+- Profile **Fixed Layout** rasterize từng trang nên cần nhiều thời gian/dung lượng hơn; profile **Kindle Auto** vẫn ưu tiên ebook semantic/reflowable.
 - Calibre là dependency bên ngoài và cần được cài riêng theo license của Calibre.

@@ -33,7 +33,8 @@ public sealed class PdfPageAnalyzer : IPdfPageAnalyzer
         }
 
         result.HasText = result.Words.Count > 0;
-        result.IsLikelyScanned = !result.HasText;
+        result.HasNativeText = result.HasText;
+        result.IsLikelyScanned = !result.HasNativeText;
         result.Lines.AddRange(BuildLines(result.Words));
         ExtractImages(page, pageNumber, result);
         return result;
@@ -98,7 +99,7 @@ public sealed class PdfPageAnalyzer : IPdfPageAnalyzer
         return (string.Empty, string.Empty);
     }
 
-    private static IReadOnlyList<PdfLine> BuildLines(IReadOnlyList<PdfWord> words)
+    public static IReadOnlyList<PdfLine> BuildLines(IReadOnlyList<PdfWord> words)
     {
         if (words.Count == 0)
         {

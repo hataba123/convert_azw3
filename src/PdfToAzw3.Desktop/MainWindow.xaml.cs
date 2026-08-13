@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Media;
 using System.IO;
+using PdfToAzw3.Core.Services;
 using PdfToAzw3.Desktop.Services;
 using PdfToAzw3.Desktop.ViewModels;
 
@@ -11,7 +12,9 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
-        var viewModel = new MainViewModel(new FileDialogService());
+        var viewModel = new MainViewModel(
+            new FileDialogService(),
+            PdfPipelineFactory.CreateDefaultReader(new WindowsOcrEngine(), new DocNetPdfPageRenderer()));
         viewModel.ThemeChanged += ApplyTheme;
         DataContext = viewModel;
     }

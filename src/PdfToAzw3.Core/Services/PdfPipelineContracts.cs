@@ -17,6 +17,45 @@ public interface IPdfPageAnalyzer
     PdfPageAnalysis Analyze(UglyToad.PdfPig.Content.Page page, int pageNumber, CancellationToken cancellationToken = default);
 }
 
+public sealed record RenderedPdfPage(
+    int PageNumber,
+    int PixelWidth,
+    int PixelHeight,
+    double PdfWidth,
+    double PdfHeight,
+    byte[] PngContent,
+    int Dpi);
+
+public interface IPdfPageRenderer
+{
+    Task<RenderedPdfPage> RenderAsync(
+        string pdfPath,
+        int pageNumber,
+        double pdfWidth,
+        double pdfHeight,
+        int dpi,
+        CancellationToken cancellationToken = default);
+}
+
+public sealed record OcrWordResult(string Text, PdfRect Bounds, double Confidence);
+
+public sealed record OcrPageResult(IReadOnlyList<OcrWordResult> Words, double AverageConfidence);
+
+public interface IOcrEngine
+{
+    bool IsAvailable { get; }
+
+    string DisplayName { get; }
+
+    Task<OcrPageResult> RecognizeAsync(
+        RenderedPdfPage page,
+        string language,
+        double minimumConfidence,
+        CancellationToken cancellationToken = default);
+}
+
+public sealed class OcrUnavailableException(string message, Exception? innerException = null) : Exception(message, innerException);
+
 public interface ILayoutAnalyzer
 {
     IReadOnlyList<PdfBlock> Analyze(PdfPageAnalysis page, CancellationToken cancellationToken = default);
