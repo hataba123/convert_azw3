@@ -199,6 +199,15 @@
                             </Border>
                             <ProgressBar Margin="0,12,0,0" Maximum="1" Value="{Binding ProgressValue}" />
                             <TextBlock Margin="0,8,0,0" Style="{StaticResource CaptionText}" Text="{Binding ErrorMessage}" TextWrapping="Wrap" />
+                            <TextBlock Margin="0,8,0,0" Style="{StaticResource CaptionText}" Text="{Binding OutputPath}" TextTrimming="CharacterEllipsis" />
+                        </StackPanel>
+                    </Border>
+
+                    <Border Margin="0,16,0,0" Style="{StaticResource CardBorder}" Visibility="{Binding IsAnalyzed, Converter={StaticResource BooleanToVisibilityConverter}}">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource SectionTitle}" Text="Ebook Preview" />
+                            <TextBlock Margin="0,0,0,10" Style="{StaticResource CaptionText}" Text="Preview native WPF từ BookDocument, trước khi gọi Calibre." />
+                            <TextBox MinHeight="180" MaxHeight="340" IsReadOnly="True" AcceptsReturn="True" Text="{Binding PreviewContent}" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" />
                         </StackPanel>
                     </Border>
                 </StackPanel>

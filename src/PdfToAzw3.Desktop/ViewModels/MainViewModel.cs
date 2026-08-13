@@ -23,6 +23,7 @@ public sealed class MainViewModel : ObservableObject
 {
     private readonly IFileDialogService _fileDialogService;
     private readonly IPdfDocumentReader _pdfDocumentReader;
+    private readonly IEbookConversionService _ebookConversionService;
     private PdfFileInfo? _inputFile;
     private PdfAnalysisResult? _analysisResult;
     private CancellationTokenSource? _conversionCancellation;
@@ -32,11 +33,17 @@ public sealed class MainViewModel : ObservableObject
     private bool _isBusy;
     private bool _isAnalyzed;
     private string? _errorMessage;
+    private string _previewContent = string.Empty;
+    private string _outputPath = string.Empty;
 
-    public MainViewModel(IFileDialogService fileDialogService, IPdfDocumentReader? pdfDocumentReader = null)
+    public MainViewModel(
+        IFileDialogService fileDialogService,
+        IPdfDocumentReader? pdfDocumentReader = null,
+        IEbookConversionService? ebookConversionService = null)
     {
         _fileDialogService = fileDialogService;
         _pdfDocumentReader = pdfDocumentReader ?? PdfPipelineFactory.CreateDefaultReader();
+        _ebookConversionService = ebookConversionService ?? EbookPipelineFactory.CreateDefaultService();
         Metadata = new BookMetadata();
         Options = new ConversionOptions();
         Summary = new AnalysisSummary();
@@ -46,12 +53,14 @@ public sealed class MainViewModel : ObservableObject
         ClearPdfCommand = new RelayCommand(ClearPdf, () => HasInputFile);
         _analyzeCommand = new AsyncRelayCommand(AnalyzeAsync, () => HasInputFile && !IsBusy);
         AnalyzeCommand = _analyzeCommand;
-        PreviewCommand = new RelayCommand(() => StatusMessage = "Hãy phân tích PDF trước khi xem preview.", () => IsAnalyzed && !IsBusy);
-        ConvertCommand = new RelayCommand(() => StatusMessage = "Hãy phân tích PDF trước khi chuyển đổi.", () => IsAnalyzed && !IsBusy);
+        PreviewCommand = new RelayCommand(ShowPreview, () => IsAnalyzed && !IsBusy);
+        _convertCommand = new AsyncRelayCommand(ConvertAsync, () => IsAnalyzed && !IsBusy);
+        ConvertCommand = _convertCommand;
         CancelCommand = new RelayCommand(CancelAnalysis, () => IsBusy);
     }
 
     private readonly AsyncRelayCommand _analyzeCommand;
+    private readonly AsyncRelayCommand _convertCommand;
 
     public BookMetadata Metadata { get; }
 
@@ -156,6 +165,18 @@ public sealed class MainViewModel : ObservableObject
 
     public bool HasError => !string.IsNullOrWhiteSpace(ErrorMessage);
 
+    public string PreviewContent
+    {
+        get => _previewContent;
+        private set => SetProperty(ref _previewContent, value);
+    }
+
+    public string OutputPath
+    {
+        get => _outputPath;
+        private set => SetProperty(ref _outputPath, value);
+    }
+
     public void ChoosePdf()
     {
         var selectedPath = _fileDialogService.SelectPdf();
@@ -236,10 +257,92 @@ public sealed class MainViewModel : ObservableObject
         StatusMessage = progress.Detail ?? progress.Stage;
     }
 
+    private void ShowPreview()
+    {
+        if (_analysisResult is null)
+        {
+            return;
+        }
+
+        var preview = new List<string>();
+        foreach (var chapter in _analysisResult.Book.Chapters.Take(3))
+        {
+            preview.Add(chapter.Title);
+            preview.Add(new string('=', Math.Min(60, Math.Max(10, chapter.Title.Length + 4))));
+            preview.AddRange(chapter.Blocks.Take(8).Select(block => block switch
+            {
+                HeadingBlock heading => $"\n{heading.Text}",
+                QuoteBlock quote => $"“{quote.Text}”",
+                ParagraphBlock paragraph => paragraph.Text,
+                _ => string.Empty
+            }));
+            preview.Add(string.Empty);
+        }
+
+        PreviewContent = string.Join(Environment.NewLine, preview);
+        StatusMessage = "Preview đã dựng từ BookDocument semantic.";
+    }
+
+    private async Task ConvertAsync()
+    {
+        if (_analysisResult is null || InputFile is null)
+        {
+            return;
+        }
+
+        ErrorMessage = null;
+        IsBusy = true;
+        ProgressValue = 0.80;
+        ProgressStage = "Preparing conversion";
+        StatusMessage = "Đang chuẩn bị EPUB...";
+        _conversionCancellation?.Dispose();
+        _conversionCancellation = new CancellationTokenSource();
+        var outputDirectory = Path.GetDirectoryName(InputFile.FullPath) ?? Environment.CurrentDirectory;
+        var outputPath = Path.Combine(outputDirectory, $"{Path.GetFileNameWithoutExtension(InputFile.FileName)}.azw3");
+
+        try
+        {
+            var progress = new Progress<ConversionProgress>(UpdateProgress);
+            var output = await _ebookConversionService.ConvertAsync(
+                _analysisResult,
+                Options,
+                outputPath,
+                progress,
+                _conversionCancellation.Token);
+            OutputPath = output.Azw3Path;
+            ProgressValue = 1;
+            ProgressStage = "Conversion complete";
+            StatusMessage = $"Đã tạo AZW3: {Path.GetFileName(output.Azw3Path)} ({FormatFileSize(output.Azw3SizeBytes)}).";
+        }
+        catch (OperationCanceledException)
+        {
+            ProgressStage = "Đã hủy";
+            StatusMessage = "Chuyển đổi đã được hủy; tiến trình Calibre đã được dừng.";
+        }
+        catch (CalibreNotFoundException exception)
+        {
+            ErrorMessage = exception.Message;
+            ProgressStage = "Calibre unavailable";
+            StatusMessage = "Không thể tạo AZW3 vì chưa tìm thấy Calibre.";
+        }
+        catch (Exception exception)
+        {
+            ErrorMessage = $"Không thể tạo AZW3: {exception.Message}";
+            ProgressStage = "Conversion failed";
+            StatusMessage = "Đã xảy ra lỗi khi chuyển đổi.";
+        }
+        finally
+        {
+            IsBusy = false;
+            _conversionCancellation?.Dispose();
+            _conversionCancellation = null;
+        }
+    }
+
     private void CancelAnalysis()
     {
         _conversionCancellation?.Cancel();
-        StatusMessage = "Đang dừng phân tích...";
+        StatusMessage = "Đang dừng tác vụ...";
     }
 
     public bool TryLoadPdf(string path)
@@ -272,6 +375,8 @@ public sealed class MainViewModel : ObservableObject
         Chapters.Clear();
         IsAnalyzed = false;
         _analysisResult = null;
+        PreviewContent = string.Empty;
+        OutputPath = string.Empty;
         ProgressValue = 0;
         ProgressStage = "Sẵn sàng phân tích";
         StatusMessage = "Tệp PDF đã sẵn sàng. Hãy chọn Analyze.";
@@ -283,6 +388,8 @@ public sealed class MainViewModel : ObservableObject
         _conversionCancellation?.Cancel();
         InputFile = null;
         _analysisResult = null;
+        PreviewContent = string.Empty;
+        OutputPath = string.Empty;
         Chapters.Clear();
         IsAnalyzed = false;
         ProgressValue = 0;
@@ -305,7 +412,7 @@ public sealed class MainViewModel : ObservableObject
         (ClearPdfCommand as RelayCommand)?.RaiseCanExecuteChanged();
         _analyzeCommand.RaiseCanExecuteChanged();
         (PreviewCommand as RelayCommand)?.RaiseCanExecuteChanged();
-        (ConvertCommand as RelayCommand)?.RaiseCanExecuteChanged();
+        _convertCommand.RaiseCanExecuteChanged();
         (CancelCommand as RelayCommand)?.RaiseCanExecuteChanged();
     }
 }

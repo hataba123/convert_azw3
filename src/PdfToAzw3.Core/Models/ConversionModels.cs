@@ -105,6 +105,8 @@ public sealed class ConversionOptions
     public bool DetectChapters { get; set; } = true;
 
     public bool EnableOcrFallback { get; set; }
+
+    public string? CalibreExecutablePath { get; set; }
 }
 
 public sealed class AnalysisSummary
