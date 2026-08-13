@@ -35,7 +35,67 @@ public sealed class PdfPageAnalyzer : IPdfPageAnalyzer
         result.HasText = result.Words.Count > 0;
         result.IsLikelyScanned = !result.HasText;
         result.Lines.AddRange(BuildLines(result.Words));
+        ExtractImages(page, pageNumber, result);
         return result;
+    }
+
+    private static void ExtractImages(Page page, int pageNumber, PdfPageAnalysis result)
+    {
+        foreach (var image in page.GetImages())
+        {
+            byte[] content;
+            string mediaType;
+            string extension;
+            if (image.TryGetPng(out var png))
+            {
+                content = png;
+                mediaType = "image/png";
+                extension = "png";
+            }
+            else
+            {
+                content = image.RawMemory.ToArray();
+                if (content.Length == 0)
+                {
+                    continue;
+                }
+
+                (mediaType, extension) = DetectImageType(content);
+                if (string.IsNullOrWhiteSpace(mediaType))
+                {
+                    continue;
+                }
+            }
+
+            result.Images.Add(new PdfExtractedImage
+            {
+                Bounds = new PdfRect(image.Bounds.Left, image.Bounds.Bottom, image.Bounds.Right, image.Bounds.Top),
+                Content = content,
+                MediaType = mediaType,
+                Extension = extension,
+                PageNumber = pageNumber
+            });
+        }
+    }
+
+    private static (string MediaType, string Extension) DetectImageType(byte[] content)
+    {
+        if (content.Length >= 8 && content[0] == 0x89 && content[1] == 0x50 && content[2] == 0x4E && content[3] == 0x47)
+        {
+            return ("image/png", "png");
+        }
+
+        if (content.Length >= 3 && content[0] == 0xFF && content[1] == 0xD8 && content[2] == 0xFF)
+        {
+            return ("image/jpeg", "jpg");
+        }
+
+        if (content.Length >= 12 && content[0] == 0x52 && content[1] == 0x49 && content[2] == 0x46 && content[3] == 0x46 && content[8] == 0x57 && content[9] == 0x45 && content[10] == 0x42 && content[11] == 0x50)
+        {
+            return ("image/webp", "webp");
+        }
+
+        return (string.Empty, string.Empty);
     }
 
     private static IReadOnlyList<PdfLine> BuildLines(IReadOnlyList<PdfWord> words)

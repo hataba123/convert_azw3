@@ -29,6 +29,8 @@
                 <Border Padding="10,7" Background="{StaticResource AccentSoftBrush}" CornerRadius="8">
                     <TextBlock FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource AccentBrush}" Text="SMART REFLOW" />
                 </Border>
+                <Button Margin="10,0,0,0" Command="{Binding ChooseCalibreCommand}" Style="{StaticResource SecondaryButton}" Content="Calibre" />
+                <Button Margin="8,0,0,0" Command="{Binding ToggleThemeCommand}" Style="{StaticResource SecondaryButton}" Content="{Binding ThemeLabel}" />
             </StackPanel>
         </Grid>
 
@@ -125,6 +127,18 @@
                                     <TextBox Margin="0,5,0,0" Text="{Binding Metadata.Publisher, UpdateSourceTrigger=PropertyChanged}" />
                                 </StackPanel>
                             </Grid>
+                            <TextBlock Margin="0,14,0,0" Style="{StaticResource CaptionText}" Text="Mô tả" />
+                            <TextBox Height="62" Margin="0,5,0,0" AcceptsReturn="True" Text="{Binding Metadata.Description, UpdateSourceTrigger=PropertyChanged}" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" />
+                            <Grid Margin="0,14,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" VerticalAlignment="Center" Style="{StaticResource CaptionText}" Text="Cover" />
+                                <TextBlock Grid.Column="1" Margin="12,0,12,0" VerticalAlignment="Center" Style="{StaticResource CaptionText}" Text="{Binding CoverPath}" TextTrimming="CharacterEllipsis" />
+                                <Button Grid.Column="2" Padding="12,7" Command="{Binding ChooseCoverCommand}" Style="{StaticResource SecondaryButton}" Content="Browse ảnh" />
+                            </Grid>
                         </StackPanel>
                     </Border>
 
@@ -151,6 +165,8 @@
                                         <ComboBoxItem Content="Document — có khoảng cách" Tag="Document" />
                                         <ComboBoxItem Content="Compact — gọn" Tag="Compact" />
                                     </ComboBox>
+                                    <TextBlock Margin="0,16,0,0" Style="{StaticResource CaptionText}" Text="Calibre executable" />
+                                    <TextBlock Margin="0,4,0,0" FontSize="11" Text="{Binding CalibrePath}" TextTrimming="CharacterEllipsis" />
                                 </StackPanel>
                                 <Grid Grid.Column="1" Margin="30,0,0,0">
                                     <Grid.ColumnDefinitions>
@@ -200,6 +216,20 @@
                             <ProgressBar Margin="0,12,0,0" Maximum="1" Value="{Binding ProgressValue}" />
                             <TextBlock Margin="0,8,0,0" Style="{StaticResource CaptionText}" Text="{Binding ErrorMessage}" TextWrapping="Wrap" />
                             <TextBlock Margin="0,8,0,0" Style="{StaticResource CaptionText}" Text="{Binding OutputPath}" TextTrimming="CharacterEllipsis" />
+                            <ItemsControl Margin="0,10,0,0" ItemsSource="{Binding Warnings}" Visibility="{Binding HasWarnings, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Margin="0,3" Padding="10,8" Background="#FFF7E6" CornerRadius="7">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Foreground="{StaticResource WarningBrush}" Text="⚠ " />
+                                                <TextBlock FontSize="12" Text="{Binding Message}" TextWrapping="Wrap" />
+                                                <TextBlock Margin="8,0,0,0" Style="{StaticResource CaptionText}" Text="Trang" />
+                                                <TextBlock Margin="3,0,0,0" Style="{StaticResource CaptionText}" Text="{Binding PageNumber}" />
+                                            </StackPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
                         </StackPanel>
                     </Border>
 
@@ -221,6 +251,7 @@
                 <Button Margin="0,0,8,0" Command="{Binding PreviewCommand}" Style="{StaticResource SecondaryButton}" Content="Preview Ebook" />
                 <Button Command="{Binding ConvertCommand}" Style="{StaticResource PrimaryButton}" Content="Convert to AZW3" />
                 <Button Margin="8,0,0,0" Command="{Binding CancelCommand}" Style="{StaticResource SecondaryButton}" Content="Cancel" />
+                <Button Margin="8,0,0,0" Command="{Binding OpenOutputFolderCommand}" Style="{StaticResource SecondaryButton}" Content="Mở thư mục output" />
             </StackPanel>
         </Grid>
     </Grid>

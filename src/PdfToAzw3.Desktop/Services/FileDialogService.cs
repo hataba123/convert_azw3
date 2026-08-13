@@ -7,6 +7,8 @@ public interface IFileDialogService
     string? SelectPdf();
 
     string? SelectExecutable();
+
+    string? SelectImage();
 }
 
 public sealed class FileDialogService : IFileDialogService
@@ -30,6 +32,19 @@ public sealed class FileDialogService : IFileDialogService
         {
             Title = "Chọn ebook-convert.exe của Calibre",
             Filter = "Calibre executable (ebook-convert.exe)|ebook-convert.exe|Executable (*.exe)|*.exe",
+            CheckFileExists = true,
+            Multiselect = false
+        };
+
+        return dialog.ShowDialog() == true ? dialog.FileName : null;
+    }
+
+    public string? SelectImage()
+    {
+        var dialog = new OpenFileDialog
+        {
+            Title = "Chọn ảnh cover",
+            Filter = "Image files (*.jpg;*.jpeg;*.png;*.gif)|*.jpg;*.jpeg;*.png;*.gif",
             CheckFileExists = true,
             Multiselect = false
         };

@@ -10,7 +10,8 @@ public sealed class PdfPigDocumentReader(
     IReadingOrderDetector readingOrderDetector,
     IParagraphReconstructor paragraphReconstructor,
     IHeaderFooterDetector headerFooterDetector,
-    IBookDocumentBuilder bookDocumentBuilder) : IPdfDocumentReader
+    IBookDocumentBuilder bookDocumentBuilder,
+    IAppLogger? logger = null) : IPdfDocumentReader
 {
     public Task<PdfAnalysisResult> AnalyzeAsync(
         string path,
@@ -46,6 +47,7 @@ public sealed class PdfPigDocumentReader(
         var warnings = new List<AnalysisWarning>();
 
         progress?.Report(new ConversionProgress("Loading PDF", 0.02, Detail: fileInfo.Name));
+        logger?.Info($"Conversion analysis started: {fileInfo.Name}, size={fileInfo.Length} bytes");
 
         using (var document = PdfDocument.Open(path))
         {
@@ -84,7 +86,7 @@ public sealed class PdfPigDocumentReader(
 
         if (kind == PdfDocumentKind.Scanned && !options.EnableOcrFallback)
         {
-            warnings.Add(new AnalysisWarning("PDF này có vẻ là tài liệu scan; hãy bật OCR Mode để thử nhận dạng văn bản.", Severity: "Error"));
+            warnings.Add(new AnalysisWarning("PDF này có vẻ là tài liệu scan; OCR fallback chưa được bật trong phiên bản hiện tại.", Severity: "Error"));
         }
         else if (kind == PdfDocumentKind.Mixed)
         {
@@ -103,6 +105,12 @@ public sealed class PdfPigDocumentReader(
             DocumentKind = kind,
             Quality = quality
         };
+
+        logger?.Info($"PDF analysis completed: pages={summary.Pages}, chapters={summary.Chapters}, paragraphs={summary.Paragraphs}, images={summary.Images}, quality={summary.Quality.Score}");
+        foreach (var warning in warnings)
+        {
+            logger?.Warning(warning.Message);
+        }
 
         progress?.Report(new ConversionProgress("Analysis complete", 1, Detail: $"{textPages} trang có text layer"));
         var result = new PdfAnalysisResult
@@ -162,7 +170,7 @@ public sealed class PdfPigDocumentReader(
             ParagraphConfidence = paragraphConfidence,
             HeadingConfidence = headingConfidence,
             ImageConfidence = imageConfidence,
-            OcrPercentage = kind == PdfDocumentKind.Scanned ? 100 : kind == PdfDocumentKind.Mixed ? 35 : 0
+            OcrPercentage = 0
         };
     }
 }

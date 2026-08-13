@@ -4,6 +4,7 @@ public static class EbookPipelineFactory
 {
     public static IEbookConversionService CreateDefaultService()
     {
-        return new EbookConversionService(new EpubBuilder(), new EpubValidator(), new CalibreService());
+        var logger = new FileAppLogger();
+        return new EbookConversionService(new EpubBuilder(), new EpubValidator(), new CalibreService(logger), logger);
     }
 }

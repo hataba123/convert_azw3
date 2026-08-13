@@ -36,6 +36,21 @@ public sealed class ParagraphBlock : BookBlock
     public required string Text { get; init; }
 
     public bool IsCode { get; init; }
+
+    public List<FootnoteReference> FootnoteReferences { get; } = [];
+}
+
+public sealed record FootnoteReference(string Marker, string TargetId, string BackLinkId);
+
+public sealed class FootnoteBlock : BookBlock
+{
+    public required string Marker { get; init; }
+
+    public required string Text { get; init; }
+
+    public required string AnchorId { get; init; }
+
+    public required string BackLinkId { get; init; }
 }
 
 public sealed class HeadingBlock : BookBlock

@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Globalization;
 using System.IO;
+using System.Diagnostics;
 using System.Windows.Input;
 using PdfToAzw3.Core.Models;
 using PdfToAzw3.Core.Services;
@@ -24,6 +25,7 @@ public sealed class MainViewModel : ObservableObject
     private readonly IFileDialogService _fileDialogService;
     private readonly IPdfDocumentReader _pdfDocumentReader;
     private readonly IEbookConversionService _ebookConversionService;
+    private readonly IAppLogger _logger;
     private PdfFileInfo? _inputFile;
     private PdfAnalysisResult? _analysisResult;
     private CancellationTokenSource? _conversionCancellation;
@@ -35,32 +37,42 @@ public sealed class MainViewModel : ObservableObject
     private string? _errorMessage;
     private string _previewContent = string.Empty;
     private string _outputPath = string.Empty;
+    private bool _isDarkMode;
 
     public MainViewModel(
         IFileDialogService fileDialogService,
         IPdfDocumentReader? pdfDocumentReader = null,
-        IEbookConversionService? ebookConversionService = null)
+        IEbookConversionService? ebookConversionService = null,
+        IAppLogger? logger = null)
     {
         _fileDialogService = fileDialogService;
         _pdfDocumentReader = pdfDocumentReader ?? PdfPipelineFactory.CreateDefaultReader();
         _ebookConversionService = ebookConversionService ?? EbookPipelineFactory.CreateDefaultService();
+        _logger = logger ?? new FileAppLogger();
         Metadata = new BookMetadata();
         Options = new ConversionOptions();
         Summary = new AnalysisSummary();
         Chapters = [];
+        Warnings = [];
 
         ChoosePdfCommand = new RelayCommand(ChoosePdf);
+        ChooseCoverCommand = new RelayCommand(ChooseCover);
+        ChooseCalibreCommand = new RelayCommand(ChooseCalibre);
+        ToggleThemeCommand = new RelayCommand(ToggleTheme);
         ClearPdfCommand = new RelayCommand(ClearPdf, () => HasInputFile);
         _analyzeCommand = new AsyncRelayCommand(AnalyzeAsync, () => HasInputFile && !IsBusy);
         AnalyzeCommand = _analyzeCommand;
         PreviewCommand = new RelayCommand(ShowPreview, () => IsAnalyzed && !IsBusy);
         _convertCommand = new AsyncRelayCommand(ConvertAsync, () => IsAnalyzed && !IsBusy);
         ConvertCommand = _convertCommand;
+        _openOutputFolderCommand = new RelayCommand(OpenOutputFolder, () => File.Exists(OutputPath));
+        OpenOutputFolderCommand = _openOutputFolderCommand;
         CancelCommand = new RelayCommand(CancelAnalysis, () => IsBusy);
     }
 
     private readonly AsyncRelayCommand _analyzeCommand;
     private readonly AsyncRelayCommand _convertCommand;
+    private readonly RelayCommand _openOutputFolderCommand;
 
     public BookMetadata Metadata { get; }
 
@@ -70,7 +82,15 @@ public sealed class MainViewModel : ObservableObject
 
     public ObservableCollection<ChapterListItem> Chapters { get; }
 
+    public ObservableCollection<AnalysisWarning> Warnings { get; }
+
     public ICommand ChoosePdfCommand { get; }
+
+    public ICommand ChooseCoverCommand { get; }
+
+    public ICommand ChooseCalibreCommand { get; }
+
+    public ICommand ToggleThemeCommand { get; }
 
     public ICommand ClearPdfCommand { get; }
 
@@ -81,6 +101,8 @@ public sealed class MainViewModel : ObservableObject
     public ICommand ConvertCommand { get; }
 
     public ICommand CancelCommand { get; }
+
+    public ICommand OpenOutputFolderCommand { get; }
 
     public PdfFileInfo? InputFile
     {
@@ -174,8 +196,36 @@ public sealed class MainViewModel : ObservableObject
     public string OutputPath
     {
         get => _outputPath;
-        private set => SetProperty(ref _outputPath, value);
+        private set
+        {
+            if (SetProperty(ref _outputPath, value))
+            {
+                _openOutputFolderCommand.RaiseCanExecuteChanged();
+            }
+        }
     }
+
+    public string CoverPath => Metadata.CoverPath ?? "Chưa chọn cover";
+
+    public string CalibrePath => Options.CalibreExecutablePath ?? "Tự động tìm ebook-convert.exe";
+
+    public bool HasWarnings => Warnings.Count > 0;
+
+    public bool IsDarkMode
+    {
+        get => _isDarkMode;
+        private set
+        {
+            if (SetProperty(ref _isDarkMode, value))
+            {
+                OnPropertyChanged(nameof(ThemeLabel));
+            }
+        }
+    }
+
+    public string ThemeLabel => IsDarkMode ? "Light" : "Dark";
+
+    public event Action<bool>? ThemeChanged;
 
     public void ChoosePdf()
     {
@@ -217,6 +267,12 @@ public sealed class MainViewModel : ObservableObject
             Summary = result.Summary;
             OnPropertyChanged(nameof(Summary));
             Chapters.Clear();
+            Warnings.Clear();
+            foreach (var warning in result.Warnings)
+            {
+                Warnings.Add(warning);
+            }
+            OnPropertyChanged(nameof(HasWarnings));
             foreach (var chapter in result.Book.Chapters)
             {
                 Chapters.Add(new ChapterListItem(chapter.Title, chapter.Level, chapter.SourcePageNumber));
@@ -238,6 +294,7 @@ public sealed class MainViewModel : ObservableObject
         }
         catch (Exception exception)
         {
+            _logger.Error("PDF analysis failed.", exception);
             ErrorMessage = $"Không thể phân tích PDF: {exception.Message}";
             ProgressStage = "Analysis failed";
             StatusMessage = "Đã xảy ra lỗi khi phân tích PDF.";
@@ -327,6 +384,7 @@ public sealed class MainViewModel : ObservableObject
         }
         catch (Exception exception)
         {
+            _logger.Error("AZW3 conversion failed.", exception);
             ErrorMessage = $"Không thể tạo AZW3: {exception.Message}";
             ProgressStage = "Conversion failed";
             StatusMessage = "Đã xảy ra lỗi khi chuyển đổi.";
@@ -343,6 +401,53 @@ public sealed class MainViewModel : ObservableObject
     {
         _conversionCancellation?.Cancel();
         StatusMessage = "Đang dừng tác vụ...";
+    }
+
+    private void ChooseCover()
+    {
+        var selectedPath = _fileDialogService.SelectImage();
+        if (string.IsNullOrWhiteSpace(selectedPath))
+        {
+            return;
+        }
+
+        Metadata.CoverPath = selectedPath;
+        OnPropertyChanged(nameof(CoverPath));
+        StatusMessage = $"Đã chọn cover: {Path.GetFileName(selectedPath)}.";
+    }
+
+    private void ChooseCalibre()
+    {
+        var selectedPath = _fileDialogService.SelectExecutable();
+        if (string.IsNullOrWhiteSpace(selectedPath))
+        {
+            return;
+        }
+
+        Options.CalibreExecutablePath = selectedPath;
+        OnPropertyChanged(nameof(CalibrePath));
+        StatusMessage = $"Đã đặt Calibre: {Path.GetFileName(selectedPath)}.";
+    }
+
+    private void ToggleTheme()
+    {
+        IsDarkMode = !IsDarkMode;
+        ThemeChanged?.Invoke(IsDarkMode);
+    }
+
+    private void OpenOutputFolder()
+    {
+        if (!File.Exists(OutputPath))
+        {
+            return;
+        }
+
+        Process.Start(new ProcessStartInfo
+        {
+            FileName = "explorer.exe",
+            Arguments = $"/select,\"{OutputPath}\"",
+            UseShellExecute = true
+        });
     }
 
     public bool TryLoadPdf(string path)
@@ -369,10 +474,14 @@ public sealed class MainViewModel : ObservableObject
 
         InputFile = new PdfFileInfo(fileInfo.FullName, fileInfo.Name, fileInfo.Length, 0);
         Metadata.Title = Path.GetFileNameWithoutExtension(fileInfo.Name);
+        Metadata.CoverPath = null;
         OnPropertyChanged(nameof(Metadata));
+        OnPropertyChanged(nameof(CoverPath));
         Summary = new AnalysisSummary();
         OnPropertyChanged(nameof(Summary));
         Chapters.Clear();
+        Warnings.Clear();
+        OnPropertyChanged(nameof(HasWarnings));
         IsAnalyzed = false;
         _analysisResult = null;
         PreviewContent = string.Empty;
@@ -391,11 +500,15 @@ public sealed class MainViewModel : ObservableObject
         PreviewContent = string.Empty;
         OutputPath = string.Empty;
         Chapters.Clear();
+        Warnings.Clear();
+        OnPropertyChanged(nameof(HasWarnings));
         IsAnalyzed = false;
         ProgressValue = 0;
         ProgressStage = "Đang chờ tệp PDF";
         StatusMessage = "Kéo thả một tệp PDF để bắt đầu.";
         ErrorMessage = null;
+        Warnings.Clear();
+        OnPropertyChanged(nameof(HasWarnings));
     }
 
     private static string FormatFileSize(long sizeBytes)
@@ -414,5 +527,6 @@ public sealed class MainViewModel : ObservableObject
         (PreviewCommand as RelayCommand)?.RaiseCanExecuteChanged();
         _convertCommand.RaiseCanExecuteChanged();
         (CancelCommand as RelayCommand)?.RaiseCanExecuteChanged();
+        _openOutputFolderCommand.RaiseCanExecuteChanged();
     }
 }

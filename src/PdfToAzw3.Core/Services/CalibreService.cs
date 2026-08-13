@@ -3,7 +3,7 @@ using PdfToAzw3.Core.Models;
 
 namespace PdfToAzw3.Core.Services;
 
-public sealed class CalibreService : ICalibreService
+public sealed class CalibreService(IAppLogger? logger = null) : ICalibreService
 {
     public string? FindExecutable(string? configuredPath = null)
     {
@@ -44,6 +44,7 @@ public sealed class CalibreService : ICalibreService
         var executable = FindExecutable(options.CalibreExecutablePath);
         if (string.IsNullOrWhiteSpace(executable))
         {
+            logger?.Warning("Calibre executable was not found.");
             throw new CalibreNotFoundException("Calibre chưa được cài đặt hoặc không tìm thấy ebook-convert.exe.");
         }
 
@@ -72,6 +73,7 @@ public sealed class CalibreService : ICalibreService
         startInfo.ArgumentList.Add(azw3Path);
         startInfo.ArgumentList.Add("--output-profile");
         startInfo.ArgumentList.Add(GetOutputProfile(options.Profile));
+        logger?.Info($"ebook-convert command: {executable} {epubPath} {azw3Path} --output-profile {GetOutputProfile(options.Profile)}");
 
         using var process = new Process { StartInfo = startInfo, EnableRaisingEvents = true };
         progress?.Report(new ConversionProgress("Generating AZW3", 0.94, Detail: "Đang chạy Calibre ebook-convert"));
@@ -80,8 +82,8 @@ public sealed class CalibreService : ICalibreService
             throw new InvalidOperationException("Không thể khởi động Calibre ebook-convert.");
         }
 
-        var standardOutputTask = process.StandardOutput.ReadToEndAsync(cancellationToken);
-        var standardErrorTask = process.StandardError.ReadToEndAsync(cancellationToken);
+        var standardOutputTask = process.StandardOutput.ReadToEndAsync();
+        var standardErrorTask = process.StandardError.ReadToEndAsync();
         try
         {
             await process.WaitForExitAsync(cancellationToken).ConfigureAwait(false);
@@ -109,7 +111,7 @@ public sealed class CalibreService : ICalibreService
         progress?.Report(new ConversionProgress("AZW3 generated", 0.99, Detail: azw3Path));
     }
 
-    private static string? FindOnPath()
+    private string? FindOnPath()
     {
         try
         {
@@ -132,8 +134,14 @@ public sealed class CalibreService : ICalibreService
             var path = result.Split([Environment.NewLine, "\n"], StringSplitOptions.RemoveEmptyEntries).FirstOrDefault();
             return string.IsNullOrWhiteSpace(path) || !File.Exists(path.Trim()) ? null : Path.GetFullPath(path.Trim());
         }
-        catch
+        catch (InvalidOperationException exception)
         {
+            logger?.Warning($"Không thể kiểm tra PATH để tìm Calibre: {exception.Message}");
+            return null;
+        }
+        catch (System.ComponentModel.Win32Exception exception)
+        {
+            logger?.Warning($"Không thể chạy lệnh kiểm tra PATH: {exception.Message}");
             return null;
         }
     }

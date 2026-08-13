@@ -76,6 +76,21 @@ public sealed class PdfPageAnalysis
     public List<PdfLine> Lines { get; } = [];
 
     public List<PdfBlock> Blocks { get; } = [];
+
+    public List<PdfExtractedImage> Images { get; } = [];
+}
+
+public sealed class PdfExtractedImage
+{
+    public required PdfRect Bounds { get; init; }
+
+    public required byte[] Content { get; init; }
+
+    public required string MediaType { get; init; }
+
+    public required string Extension { get; init; }
+
+    public int PageNumber { get; init; }
 }
 
 public sealed class PdfAnalysisResult

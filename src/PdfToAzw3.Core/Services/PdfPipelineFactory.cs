@@ -10,6 +10,7 @@ public static class PdfPipelineFactory
             new ReadingOrderDetector(),
             new ParagraphReconstructor(),
             new HeaderFooterDetector(),
-            new BookDocumentBuilder(new HeadingDetector()));
+            new BookDocumentBuilder(new HeadingDetector()),
+            new FileAppLogger());
     }
 }

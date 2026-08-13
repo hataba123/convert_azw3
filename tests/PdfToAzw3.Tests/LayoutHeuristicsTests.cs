@@ -81,6 +81,34 @@ public sealed class LayoutHeuristicsTests
         Assert.Equal(1, result.Level);
     }
 
+    [Fact]
+    public void BookDocumentBuilder_ConvertsAlignedRowsToTableBlock()
+    {
+        var page = new PdfPageAnalysis { PageNumber = 1, Width = 600, Height = 800 };
+        var block = new PdfBlock
+        {
+            BlockType = LayoutBlockType.Paragraph,
+            Bounds = new PdfRect(80, 500, 520, 560),
+            Text = "Name Value Status",
+            FontSize = 12,
+            FontName = "Arial",
+            PageNumber = 1,
+            ReadingOrder = 0
+        };
+        block.Lines.Add(CreateLine([("Name", 80), ("Value", 250), ("Status", 420)], 550));
+        block.Lines.Add(CreateLine([("A", 80), ("42", 250), ("Ready", 420)], 530));
+        block.Lines.Add(CreateLine([("B", 80), ("17", 250), ("Done", 420)], 510));
+        page.Blocks.Add(block);
+
+        var book = new BookDocumentBuilder(new HeadingDetector()).Build(
+            [page],
+            new BookMetadata { Title = "Table" },
+            new ConversionOptions(),
+            []);
+
+        Assert.Contains(book.Chapters.SelectMany(chapter => chapter.Blocks), block => block is TableBlock table && table.Rows.Count == 3);
+    }
+
     private static PdfBlock CreateBlock(string text, double top, int readingOrder, double left = 80)
     {
         return new PdfBlock
@@ -94,5 +122,16 @@ public sealed class LayoutHeuristicsTests
             PageNumber = 1,
             Alignment = TextAlignment.Left
         };
+    }
+
+    private static PdfLine CreateLine((string Text, double Left)[] words, double top)
+    {
+        var line = new PdfLine();
+        foreach (var word in words)
+        {
+            line.Words.Add(new PdfWord(word.Text, new PdfRect(word.Left, top - 12, word.Left + 45, top), 12, "Arial", false, false, line.Words.Count));
+        }
+
+        return line;
     }
 }

@@ -1,4 +1,5 @@
 using System.Windows;
+using System.Windows.Media;
 using System.IO;
 using PdfToAzw3.Desktop.Services;
 using PdfToAzw3.Desktop.ViewModels;
@@ -10,7 +11,9 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
-        DataContext = new MainViewModel(new FileDialogService());
+        var viewModel = new MainViewModel(new FileDialogService());
+        viewModel.ThemeChanged += ApplyTheme;
+        DataContext = viewModel;
     }
 
     private void Window_DragOver(object sender, DragEventArgs e)
@@ -40,5 +43,58 @@ public partial class MainWindow : Window
 
         var files = (string[])e.Data.GetData(DataFormats.FileDrop);
         return files.Length > 0 && Path.GetExtension(files[0]).Equals(".pdf", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static void ApplyTheme(bool isDark)
+    {
+        var colors = isDark
+            ? new Dictionary<string, string>
+            {
+                ["WindowBackgroundBrush"] = "#111827",
+                ["SurfaceBrush"] = "#1B2432",
+                ["SurfaceMutedBrush"] = "#202B3C",
+                ["BorderBrush"] = "#354156",
+                ["TextBrush"] = "#F3F4F6",
+                ["MutedTextBrush"] = "#9AA7BB",
+                ["AccentBrush"] = "#7692FF",
+                ["AccentDarkBrush"] = "#5E79E6",
+                ["AccentSoftBrush"] = "#27345E",
+                ["SuccessBrush"] = "#51C795",
+                ["WarningBrush"] = "#F3B85B"
+            }
+            : new Dictionary<string, string>
+            {
+                ["WindowBackgroundBrush"] = "#F4F6FA",
+                ["SurfaceBrush"] = "#FFFFFF",
+                ["SurfaceMutedBrush"] = "#F8FAFC",
+                ["BorderBrush"] = "#E3E8F0",
+                ["TextBrush"] = "#182230",
+                ["MutedTextBrush"] = "#6E7A8A",
+                ["AccentBrush"] = "#3559E0",
+                ["AccentDarkBrush"] = "#2948BF",
+                ["AccentSoftBrush"] = "#E8EDFF",
+                ["SuccessBrush"] = "#12805C",
+                ["WarningBrush"] = "#A56800"
+            };
+
+        foreach (var item in colors)
+        {
+            var color = (Color)ColorConverter.ConvertFromString(item.Value)!;
+            if (Application.Current.Resources[item.Key] is SolidColorBrush brush)
+            {
+                try
+                {
+                    brush.Color = color;
+                }
+                catch (InvalidOperationException)
+                {
+                    Application.Current.Resources[item.Key] = new SolidColorBrush(color);
+                }
+            }
+            else
+            {
+                Application.Current.Resources[item.Key] = new SolidColorBrush(color);
+            }
+        }
     }
 }

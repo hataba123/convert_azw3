@@ -49,6 +49,16 @@ public sealed class ParagraphReconstructor : IParagraphReconstructor
             return false;
         }
 
+        if (previous.FontSize > 0 && next.FontSize > 0 && Math.Abs(previous.FontSize - next.FontSize) > Math.Max(2, Math.Max(previous.FontSize, next.FontSize) * 0.18))
+        {
+            return false;
+        }
+
+        if (previous.IsBold != next.IsBold || previous.IsItalic != next.IsItalic)
+        {
+            return false;
+        }
+
         if (previous.ReadingOrder + 1 != next.ReadingOrder)
         {
             return false;
