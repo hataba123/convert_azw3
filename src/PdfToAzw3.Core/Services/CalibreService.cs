@@ -146,7 +146,7 @@ public sealed class CalibreService(IAppLogger? logger = null) : ICalibreService
         }
     }
 
-    private static void TryKill(Process process)
+    private void TryKill(Process process)
     {
         try
         {
@@ -155,8 +155,9 @@ public sealed class CalibreService(IAppLogger? logger = null) : ICalibreService
                 process.Kill(entireProcessTree: true);
             }
         }
-        catch (InvalidOperationException)
+        catch (InvalidOperationException exception)
         {
+            logger?.Warning($"Calibre process đã kết thúc trước khi kill: {exception.Message}");
         }
     }
 
