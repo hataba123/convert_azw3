@@ -6,7 +6,7 @@
         Height="820"
         MinWidth="1050"
         MinHeight="680"
-        Background="{StaticResource WindowBackgroundBrush}"
+        Background="{DynamicResource WindowBackgroundBrush}"
         WindowStartupLocation="CenterScreen"
         AllowDrop="True"
         DragOver="Window_DragOver"
@@ -26,8 +26,8 @@
                 <TextBlock Margin="0,4,0,0" Style="{StaticResource CaptionText}" Text="Tái cấu trúc PDF thành ebook AZW3 có thể reflow trên Kindle" />
             </StackPanel>
             <StackPanel HorizontalAlignment="Right" Orientation="Horizontal">
-                <Border Padding="10,7" Background="{StaticResource AccentSoftBrush}" CornerRadius="8">
-                    <TextBlock FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource AccentBrush}" Text="SMART REFLOW" />
+                <Border Padding="10,7" Background="{DynamicResource AccentSoftBrush}" CornerRadius="8">
+                    <TextBlock FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource AccentBrush}" Text="SMART REFLOW" />
                 </Border>
                 <Button Margin="10,0,0,0" Command="{Binding ChooseCalibreCommand}" Style="{StaticResource SecondaryButton}" Content="Calibre" />
                 <Button Margin="8,0,0,0" Command="{Binding ToggleThemeCommand}" Style="{StaticResource SecondaryButton}" Content="{Binding ThemeLabel}" />
@@ -70,7 +70,7 @@
                             </DataTemplate>
                         </ListBox.ItemTemplate>
                     </ListBox>
-                    <Border Grid.Row="3" Margin="0,14,0,0" Padding="10" Background="{StaticResource SurfaceMutedBrush}" CornerRadius="8">
+                    <Border Grid.Row="3" Margin="0,14,0,0" Padding="10" Background="{DynamicResource SurfaceMutedBrush}" CornerRadius="8">
                         <StackPanel>
                             <TextBlock Style="{StaticResource CaptionText}" Text="TRẠNG THÁI" />
                             <TextBlock Margin="0,4,0,0" FontSize="12" Text="{Binding StatusMessage}" TextWrapping="Wrap" />
@@ -205,9 +205,9 @@
                                 <StackPanel Grid.Column="1"><TextBlock Style="{StaticResource CaptionText}" Text="Chapters" /><TextBlock Margin="0,4,0,0" FontSize="21" FontWeight="SemiBold" Text="{Binding Summary.Chapters}" /></StackPanel>
                                 <StackPanel Grid.Column="2"><TextBlock Style="{StaticResource CaptionText}" Text="Paragraphs" /><TextBlock Margin="0,4,0,0" FontSize="21" FontWeight="SemiBold" Text="{Binding Summary.Paragraphs}" /></StackPanel>
                                 <StackPanel Grid.Column="3"><TextBlock Style="{StaticResource CaptionText}" Text="Images" /><TextBlock Margin="0,4,0,0" FontSize="21" FontWeight="SemiBold" Text="{Binding Summary.Images}" /></StackPanel>
-                                <StackPanel Grid.Column="4"><TextBlock Style="{StaticResource CaptionText}" Text="Quality" /><TextBlock Margin="0,4,0,0" FontSize="21" FontWeight="SemiBold" Foreground="{StaticResource SuccessBrush}" Text="{Binding Summary.Quality.Score}" /></StackPanel>
+                                <StackPanel Grid.Column="4"><TextBlock Style="{StaticResource CaptionText}" Text="Quality" /><TextBlock Margin="0,4,0,0" FontSize="21" FontWeight="SemiBold" Foreground="{DynamicResource SuccessBrush}" Text="{Binding Summary.Quality.Score}" /></StackPanel>
                             </Grid>
-                            <Border Margin="0,16,0,0" Padding="12" Background="{StaticResource SurfaceMutedBrush}" CornerRadius="9">
+                            <Border Margin="0,16,0,0" Padding="12" Background="{DynamicResource SurfaceMutedBrush}" CornerRadius="9">
                                 <StackPanel Orientation="Horizontal">
                                     <TextBlock FontWeight="SemiBold" Text="{Binding ProgressStage}" />
                                     <TextBlock Margin="15,0,0,0" Style="{StaticResource CaptionText}" Text="{Binding StatusMessage}" />
@@ -221,7 +221,7 @@
                                     <DataTemplate>
                                         <Border Margin="0,3" Padding="10,8" Background="#FFF7E6" CornerRadius="7">
                                             <StackPanel Orientation="Horizontal">
-                                                <TextBlock Foreground="{StaticResource WarningBrush}" Text="⚠ " />
+                                                <TextBlock Foreground="{DynamicResource WarningBrush}" Text="⚠ " />
                                                 <TextBlock FontSize="12" Text="{Binding Message}" TextWrapping="Wrap" />
                                                 <TextBlock Margin="8,0,0,0" Style="{StaticResource CaptionText}" Text="Trang" />
                                                 <TextBlock Margin="3,0,0,0" Style="{StaticResource CaptionText}" Text="{Binding PageNumber}" />

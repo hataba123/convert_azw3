@@ -51,6 +51,7 @@ public sealed class PdfPigDocumentReader(
 
         using (var document = PdfDocument.Open(path))
         {
+            ApplyDocumentMetadata(document.Information, metadata, fileInfo);
             var totalPages = document.NumberOfPages;
             for (var pageNumber = 1; pageNumber <= totalPages; pageNumber++)
             {
@@ -122,6 +123,26 @@ public sealed class PdfPigDocumentReader(
         result.Pages.AddRange(pages);
         result.Warnings.AddRange(warnings);
         return result;
+    }
+
+    private static void ApplyDocumentMetadata(UglyToad.PdfPig.Content.DocumentInformation information, BookMetadata metadata, FileInfo fileInfo)
+    {
+        var defaultTitle = Path.GetFileNameWithoutExtension(fileInfo.Name);
+        if (!string.IsNullOrWhiteSpace(information.Title) &&
+            (string.IsNullOrWhiteSpace(metadata.Title) || metadata.Title.Equals(defaultTitle, StringComparison.OrdinalIgnoreCase)))
+        {
+            metadata.Title = information.Title.Trim();
+        }
+
+        if (string.IsNullOrWhiteSpace(metadata.Author) && !string.IsNullOrWhiteSpace(information.Author))
+        {
+            metadata.Author = information.Author.Trim();
+        }
+
+        if (string.IsNullOrWhiteSpace(metadata.Description) && !string.IsNullOrWhiteSpace(information.Subject))
+        {
+            metadata.Description = information.Subject.Trim();
+        }
     }
 
     private static PdfDocumentKind ClassifyDocument(IReadOnlyList<PdfPageAnalysis> pages)
