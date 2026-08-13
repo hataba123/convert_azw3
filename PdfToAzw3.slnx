@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/PdfToAzw3.Core/PdfToAzw3.Core.csproj" />
+    <Project Path="src/PdfToAzw3.Desktop/PdfToAzw3.Desktop.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/PdfToAzw3.Tests/PdfToAzw3.Tests.csproj" />
+  </Folder>
+</Solution>

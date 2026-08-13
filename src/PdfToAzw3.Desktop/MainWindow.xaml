@@ -1,0 +1,218 @@
+<Window x:Class="PdfToAzw3.Desktop.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="PDF → Kindle Studio"
+        Width="1280"
+        Height="820"
+        MinWidth="1050"
+        MinHeight="680"
+        Background="{StaticResource WindowBackgroundBrush}"
+        WindowStartupLocation="CenterScreen"
+        AllowDrop="True"
+        DragOver="Window_DragOver"
+        Drop="Window_Drop">
+    <Grid Margin="28">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="16" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="16" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <Grid Grid.Row="0">
+            <StackPanel>
+                <TextBlock FontSize="26" FontWeight="Bold" Text="PDF → Kindle Studio" />
+                <TextBlock Margin="0,4,0,0" Style="{StaticResource CaptionText}" Text="Tái cấu trúc PDF thành ebook AZW3 có thể reflow trên Kindle" />
+            </StackPanel>
+            <StackPanel HorizontalAlignment="Right" Orientation="Horizontal">
+                <Border Padding="10,7" Background="{StaticResource AccentSoftBrush}" CornerRadius="8">
+                    <TextBlock FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource AccentBrush}" Text="SMART REFLOW" />
+                </Border>
+            </StackPanel>
+        </Grid>
+
+        <Grid Grid.Row="2">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="268" />
+                <ColumnDefinition Width="18" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <Border Grid.Column="0" Style="{StaticResource CardBorder}">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="12" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <StackPanel Grid.Row="0">
+                        <TextBlock FontSize="15" FontWeight="SemiBold" Text="Nội dung sách" />
+                        <TextBlock Margin="0,3,0,0" Style="{StaticResource CaptionText}" Text="Chapter và mục lục" />
+                    </StackPanel>
+                    <ListBox Grid.Row="2"
+                             ItemsSource="{Binding Chapters}"
+                             SelectedIndex="0"
+                             BorderThickness="0"
+                             Background="Transparent"
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <Border Margin="0,3" Padding="10,9" Background="Transparent" CornerRadius="8">
+                                    <StackPanel>
+                                        <TextBlock FontSize="13" Text="{Binding Title}" TextTrimming="CharacterEllipsis" />
+                                        <TextBlock Margin="0,3,0,0" Style="{StaticResource CaptionText}" Text="{Binding PageLabel}" />
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                    <Border Grid.Row="3" Margin="0,14,0,0" Padding="10" Background="{StaticResource SurfaceMutedBrush}" CornerRadius="8">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource CaptionText}" Text="TRẠNG THÁI" />
+                            <TextBlock Margin="0,4,0,0" FontSize="12" Text="{Binding StatusMessage}" TextWrapping="Wrap" />
+                        </StackPanel>
+                    </Border>
+                </Grid>
+            </Border>
+
+            <ScrollViewer Grid.Column="2" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                <StackPanel>
+                    <Border Style="{StaticResource CardBorder}">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Style="{StaticResource SectionTitle}" Text="Nguồn PDF" />
+                                <TextBlock FontSize="15" FontWeight="SemiBold" Text="{Binding InputFileName}" TextTrimming="CharacterEllipsis" />
+                                <TextBlock Margin="0,5,0,0" Style="{StaticResource CaptionText}" Text="{Binding InputFilePath}" TextTrimming="CharacterEllipsis" />
+                                <StackPanel Margin="0,14,0,0" Orientation="Horizontal">
+                                    <TextBlock Style="{StaticResource CaptionText}" Text="Dung lượng: " />
+                                    <TextBlock FontWeight="SemiBold" Text="{Binding InputFileSize}" />
+                                    <TextBlock Margin="20,0,0,0" Style="{StaticResource CaptionText}" Text="Số trang: " />
+                                    <TextBlock FontWeight="SemiBold" Text="{Binding PageCountText}" />
+                                </StackPanel>
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Margin="24,0,0,0" VerticalAlignment="Center" Orientation="Horizontal">
+                                <Button Margin="0,0,8,0" Padding="13,9" Command="{Binding ChoosePdfCommand}" Style="{StaticResource SecondaryButton}" Content="Chọn PDF" />
+                                <Button Padding="13,9" Command="{Binding ClearPdfCommand}" Style="{StaticResource SecondaryButton}" Content="Xóa" />
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+
+                    <Border Margin="0,16,0,0" Style="{StaticResource CardBorder}">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource SectionTitle}" Text="Thông tin sách" />
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="16" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0">
+                                    <TextBlock Style="{StaticResource CaptionText}" Text="Tiêu đề" />
+                                    <TextBox Margin="0,5,0,12" Text="{Binding Metadata.Title, UpdateSourceTrigger=PropertyChanged}" />
+                                    <TextBlock Style="{StaticResource CaptionText}" Text="Ngôn ngữ" />
+                                    <TextBox Margin="0,5,0,0" Text="{Binding Metadata.Language, UpdateSourceTrigger=PropertyChanged}" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="2">
+                                    <TextBlock Style="{StaticResource CaptionText}" Text="Tác giả" />
+                                    <TextBox Margin="0,5,0,12" Text="{Binding Metadata.Author, UpdateSourceTrigger=PropertyChanged}" />
+                                    <TextBlock Style="{StaticResource CaptionText}" Text="Nhà xuất bản" />
+                                    <TextBox Margin="0,5,0,0" Text="{Binding Metadata.Publisher, UpdateSourceTrigger=PropertyChanged}" />
+                                </StackPanel>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Margin="0,16,0,0" Style="{StaticResource CardBorder}">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource SectionTitle}" Text="Thiết lập chuyển đổi" />
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="220" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0">
+                                    <TextBlock Style="{StaticResource CaptionText}" Text="Profile" />
+                                    <ComboBox Margin="0,5,0,0" SelectedValue="{Binding Options.Profile, Mode=TwoWay}" SelectedValuePath="Tag">
+                                        <ComboBoxItem Content="Kindle Auto" Tag="KindleAuto" />
+                                        <ComboBoxItem Content="Kindle Novel" Tag="KindleNovel" />
+                                        <ComboBoxItem Content="Kindle Technical Book" Tag="KindleTechnicalBook" />
+                                        <ComboBoxItem Content="Preserve Layout" Tag="PreserveLayout" />
+                                        <ComboBoxItem Content="Fixed Layout" Tag="FixedLayout" />
+                                    </ComboBox>
+                                    <TextBlock Margin="0,18,0,0" Style="{StaticResource CaptionText}" Text="Kiểu paragraph" />
+                                    <ComboBox Margin="0,5,0,0" SelectedValue="{Binding Options.ParagraphStyle, Mode=TwoWay}" SelectedValuePath="Tag">
+                                        <ComboBoxItem Content="Book — thụt dòng đầu" Tag="Book" />
+                                        <ComboBoxItem Content="Document — có khoảng cách" Tag="Document" />
+                                        <ComboBoxItem Content="Compact — gọn" Tag="Compact" />
+                                    </ComboBox>
+                                </StackPanel>
+                                <Grid Grid.Column="1" Margin="30,0,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0">
+                                        <CheckBox Content="Smart Reflow" IsChecked="{Binding Options.SmartReflow}" />
+                                        <CheckBox Content="Xóa header lặp lại" IsChecked="{Binding Options.RemoveRepeatedHeaders}" />
+                                        <CheckBox Content="Xóa footer lặp lại" IsChecked="{Binding Options.RemoveRepeatedFooters}" />
+                                        <CheckBox Content="Xóa số trang" IsChecked="{Binding Options.RemovePageNumbers}" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1">
+                                        <CheckBox Content="Sửa từ bị ngắt dòng" IsChecked="{Binding Options.RepairHyphenatedWords}" />
+                                        <CheckBox Content="Tạo Table of Contents" IsChecked="{Binding Options.GenerateTableOfContents}" />
+                                        <CheckBox Content="Giữ hình ảnh" IsChecked="{Binding Options.PreserveImages}" />
+                                        <CheckBox Content="Tự nhận diện chapter" IsChecked="{Binding Options.DetectChapters}" />
+                                    </StackPanel>
+                                </Grid>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Margin="0,16,0,0" Style="{StaticResource CardBorder}">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource SectionTitle}" Text="Phân tích" />
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0"><TextBlock Style="{StaticResource CaptionText}" Text="Pages" /><TextBlock Margin="0,4,0,0" FontSize="21" FontWeight="SemiBold" Text="{Binding Summary.Pages}" /></StackPanel>
+                                <StackPanel Grid.Column="1"><TextBlock Style="{StaticResource CaptionText}" Text="Chapters" /><TextBlock Margin="0,4,0,0" FontSize="21" FontWeight="SemiBold" Text="{Binding Summary.Chapters}" /></StackPanel>
+                                <StackPanel Grid.Column="2"><TextBlock Style="{StaticResource CaptionText}" Text="Paragraphs" /><TextBlock Margin="0,4,0,0" FontSize="21" FontWeight="SemiBold" Text="{Binding Summary.Paragraphs}" /></StackPanel>
+                                <StackPanel Grid.Column="3"><TextBlock Style="{StaticResource CaptionText}" Text="Images" /><TextBlock Margin="0,4,0,0" FontSize="21" FontWeight="SemiBold" Text="{Binding Summary.Images}" /></StackPanel>
+                                <StackPanel Grid.Column="4"><TextBlock Style="{StaticResource CaptionText}" Text="Quality" /><TextBlock Margin="0,4,0,0" FontSize="21" FontWeight="SemiBold" Foreground="{StaticResource SuccessBrush}" Text="{Binding Summary.Quality.Score}" /></StackPanel>
+                            </Grid>
+                            <Border Margin="0,16,0,0" Padding="12" Background="{StaticResource SurfaceMutedBrush}" CornerRadius="9">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock FontWeight="SemiBold" Text="{Binding ProgressStage}" />
+                                    <TextBlock Margin="15,0,0,0" Style="{StaticResource CaptionText}" Text="{Binding StatusMessage}" />
+                                </StackPanel>
+                            </Border>
+                            <ProgressBar Margin="0,12,0,0" Maximum="1" Value="{Binding ProgressValue}" />
+                            <TextBlock Margin="0,8,0,0" Style="{StaticResource CaptionText}" Text="{Binding ErrorMessage}" TextWrapping="Wrap" />
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </ScrollViewer>
+        </Grid>
+
+        <Grid Grid.Row="4">
+            <TextBlock VerticalAlignment="Center" Style="{StaticResource CaptionText}" Text="PDF được phân tích theo glyph, tọa độ, reading order và semantic blocks." />
+            <StackPanel HorizontalAlignment="Right" Orientation="Horizontal">
+                <Button Margin="0,0,8,0" Command="{Binding AnalyzeCommand}" Style="{StaticResource SecondaryButton}" Content="Analyze" />
+                <Button Margin="0,0,8,0" Command="{Binding PreviewCommand}" Style="{StaticResource SecondaryButton}" Content="Preview Ebook" />
+                <Button Command="{Binding ConvertCommand}" Style="{StaticResource PrimaryButton}" Content="Convert to AZW3" />
+                <Button Margin="8,0,0,0" Command="{Binding CancelCommand}" Style="{StaticResource SecondaryButton}" Content="Cancel" />
+            </StackPanel>
+        </Grid>
+    </Grid>
+</Window>
