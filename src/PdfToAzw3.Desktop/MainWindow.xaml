@@ -223,7 +223,7 @@
                                     <TextBlock Margin="15,0,0,0" Style="{StaticResource CaptionText}" Text="{Binding StatusMessage}" />
                                 </StackPanel>
                             </Border>
-                            <ProgressBar Margin="0,12,0,0" Maximum="1" Value="{Binding ProgressValue}" />
+                            <ProgressBar Margin="0,12,0,0" Maximum="1" Value="{Binding ProgressValue, Mode=OneWay}" />
                             <TextBlock Margin="0,8,0,0" Style="{StaticResource CaptionText}" Text="{Binding ErrorMessage}" TextWrapping="Wrap" />
                             <TextBlock Margin="0,8,0,0" Style="{StaticResource CaptionText}" Text="{Binding OutputPath}" TextTrimming="CharacterEllipsis" />
                             <ItemsControl Margin="0,10,0,0" ItemsSource="{Binding Warnings}" Visibility="{Binding HasWarnings, Converter={StaticResource BooleanToVisibilityConverter}}">
@@ -247,7 +247,7 @@
                         <StackPanel>
                             <TextBlock Style="{StaticResource SectionTitle}" Text="Ebook Preview" />
                             <TextBlock Margin="0,0,0,10" Style="{StaticResource CaptionText}" Text="Preview native WPF từ BookDocument, trước khi gọi Calibre." />
-                            <TextBox MinHeight="180" MaxHeight="340" IsReadOnly="True" AcceptsReturn="True" Text="{Binding PreviewContent}" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" />
+                            <TextBox MinHeight="180" MaxHeight="340" IsReadOnly="True" AcceptsReturn="True" Text="{Binding PreviewContent, Mode=OneWay}" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" />
                         </StackPanel>
                     </Border>
                 </StackPanel>
