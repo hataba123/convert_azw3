@@ -1,3 +1,5 @@
+using System.IO.Compression;
+using System.Text;
 using PdfToAzw3.Core.Models;
 using PdfToAzw3.Core.Services;
 
@@ -152,6 +154,49 @@ public sealed class TechnicalBookSingleColumnTests
         Assert.Equal(["2. Phương pháp", "Trái", "Phải"], result.Select(block => block.Text));
     }
 
+    [Fact]
+    public async Task EpubBuilder_RendersTechnicalDocumentBlocksWithoutBookIndent()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "PdfToAzw3Tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        var epubPath = Path.Combine(root, "technical.epub");
+        var book = new BookDocument { Metadata = new BookMetadata { Title = "Technical document" } };
+        book.Resources.Add(new BookResource
+        {
+            Id = "image-001",
+            FileName = "image-001.png",
+            MediaType = "image/png",
+            Content = [0x89, 0x50, 0x4E, 0x47]
+        });
+        var chapter = new BookChapter { Title = "Nội dung", AnchorId = "chapter-1", SourcePageNumber = 1 };
+        var list = new ListBlock { BlockType = LayoutBlockType.List, SourcePageNumber = 1 };
+        list.Items.AddRange(["Chuẩn bị", "Kiểm tra"]);
+        chapter.Blocks.Add(list);
+        chapter.Blocks.Add(new ImageBlock
+        {
+            BlockType = LayoutBlockType.Image,
+            ResourceId = "image-001.png",
+            Caption = "Hình 1. Quy trình",
+            SourcePageNumber = 1
+        });
+        book.Chapters.Add(chapter);
+
+        await new EpubBuilder().BuildAsync(
+            book,
+            new ConversionOptions { Profile = ConversionProfile.KindleTechnicalBook },
+            epubPath);
+
+        Assert.True((await new EpubValidator().ValidateAsync(epubPath)).IsValid);
+        using var archive = ZipFile.OpenRead(epubPath);
+        var chapterXhtml = ReadEntry(archive, "OEBPS/text/chapter001.xhtml");
+        var css = ReadEntry(archive, "OEBPS/styles/book.css");
+        Assert.Contains("<ul>", chapterXhtml);
+        Assert.Contains("<li>Chuẩn bị</li>", chapterXhtml);
+        Assert.Contains("<li>Kiểm tra</li>", chapterXhtml);
+        Assert.Contains("<figcaption>Hình 1. Quy trình</figcaption>", chapterXhtml);
+        Assert.Contains("text-indent: 0", css);
+    }
+
     private static PdfBlock CreateBlock(string text, double top, bool bold = false, double fontSize = 12, double left = 72, double width = 430) => new()
     {
         BlockType = LayoutBlockType.Paragraph,
@@ -177,5 +222,12 @@ public sealed class TechnicalBookSingleColumnTests
         var line = new PdfLine();
         line.Words.Add(new PdfWord(text, new PdfRect(72, top - 12, 220, top), 12, "Arial", false, false, 0));
         return line;
+    }
+
+    private static string ReadEntry(ZipArchive archive, string path)
+    {
+        using var stream = archive.GetEntry(path)!.Open();
+        using var reader = new StreamReader(stream, Encoding.UTF8);
+        return reader.ReadToEnd();
     }
 }
