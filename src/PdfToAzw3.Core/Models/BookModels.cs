@@ -77,7 +77,7 @@ public sealed class ImageBlock : BookBlock
 {
     public required string ResourceId { get; init; }
 
-    public string? Caption { get; init; }
+    public string? Caption { get; set; }
 }
 
 public sealed class ListBlock : BookBlock

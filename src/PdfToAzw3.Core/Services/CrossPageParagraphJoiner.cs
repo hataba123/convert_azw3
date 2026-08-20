@@ -12,12 +12,13 @@ internal static class CrossPageParagraphJoiner
         ConversionOptions options,
         CancellationToken cancellationToken)
     {
-        if (!options.SmartReflow || options.Profile is ConversionProfile.FixedLayout or ConversionProfile.PreserveLayout or ConversionProfile.KindleTechnicalBook)
+        if (!options.SmartReflow || options.Profile is ConversionProfile.FixedLayout or ConversionProfile.PreserveLayout)
         {
             return (0, 0);
         }
 
-        if (options.Profile == ConversionProfile.KindleAuto && !IsPredominantlySingleColumn(pages))
+        if (options.Profile is ConversionProfile.KindleAuto or ConversionProfile.KindleTechnicalBook &&
+            !IsPredominantlySingleColumn(pages))
         {
             return (0, 0);
         }
@@ -77,7 +78,8 @@ internal static class CrossPageParagraphJoiner
     {
         if (previous.BlockType != LayoutBlockType.Paragraph || next.BlockType != LayoutBlockType.Paragraph ||
             previous.Alignment == TextAlignment.Center || next.Alignment == TextAlignment.Center ||
-            previous.IsBold != next.IsBold || previous.IsItalic != next.IsItalic)
+            previous.IsBold != next.IsBold || previous.IsItalic != next.IsItalic ||
+            LooksStructural(previous) || LooksStructural(next))
         {
             return false;
         }
@@ -92,6 +94,21 @@ internal static class CrossPageParagraphJoiner
 
         return previous.FontSize <= 0 || next.FontSize <= 0 ||
                Math.Abs(previous.FontSize - next.FontSize) <= Math.Max(2, Math.Max(previous.FontSize, next.FontSize) * 0.18);
+    }
+
+    private static bool LooksStructural(PdfBlock block)
+    {
+        var text = block.Text.TrimStart();
+        return block.FontName.Contains("mono", StringComparison.OrdinalIgnoreCase) ||
+               block.FontName.Contains("courier", StringComparison.OrdinalIgnoreCase) ||
+               text.StartsWith("Hình", StringComparison.OrdinalIgnoreCase) ||
+               text.StartsWith("Figure", StringComparison.OrdinalIgnoreCase) ||
+               text.StartsWith("Bảng", StringComparison.OrdinalIgnoreCase) ||
+               text.StartsWith("Table", StringComparison.OrdinalIgnoreCase) ||
+               text.StartsWith("Chương", StringComparison.OrdinalIgnoreCase) ||
+               text.StartsWith("Chapter", StringComparison.OrdinalIgnoreCase) ||
+               (block.Lines.Count >= 2 && block.Lines.Count(line => StartsListOrDialogue(line.Text)) >= Math.Ceiling(block.Lines.Count * 0.6)) ||
+               TableDetector.TryCreate(block, out _, technicalMode: true);
     }
 
     private static bool EndsSentence(string text)

@@ -205,6 +205,10 @@ public sealed record ConversionRecommendation(
         ConversionProfile.KindleTechnicalBook => "Kindle Technical Book",
         _ => "Kindle Novel"
     };
+
+    public string Detail => Reasons.Count == 0
+        ? $"Độ tin cậy {Confidence:P0}"
+        : $"Độ tin cậy {Confidence:P0} · {string.Join(" · ", Reasons.Take(2))}";
 }
 
 public sealed record ConversionProgress(

@@ -24,6 +24,7 @@ public sealed partial class BookDocumentBuilder(IHeadingDetector headingDetector
         var imageNumber = 0;
         foreach (var page in pages.OrderBy(page => page.PageNumber))
         {
+            ImageBlock? latestImage = null;
             var footnoteCandidates = page.Blocks
                 .Where(block => block.Bounds.Bottom <= page.Height * 0.28 && TryParseFootnote(block.Text, out _, out _))
                 .Select(block => (Block: block, Footnote: ParseFootnote(block.Text)))
@@ -70,12 +71,13 @@ public sealed partial class BookDocumentBuilder(IHeadingDetector headingDetector
                     }
 
                     currentChapter ??= CreateDefaultChapter(book, page.PageNumber);
-                    currentChapter.Blocks.Add(new ImageBlock
+                    latestImage = new ImageBlock
                     {
                         BlockType = LayoutBlockType.Image,
                         SourcePageNumber = page.PageNumber,
                         ResourceId = resource.FileName
-                    });
+                    };
+                    currentChapter.Blocks.Add(latestImage);
                     continue;
                 }
 
@@ -129,6 +131,20 @@ public sealed partial class BookDocumentBuilder(IHeadingDetector headingDetector
 
                 if (string.IsNullOrWhiteSpace(block.Text))
                 {
+                    continue;
+                }
+
+                if (options.Profile == ConversionProfile.KindleTechnicalBook &&
+                    latestImage is not null && IsCaption(block))
+                {
+                    latestImage.Caption = TextNormalizer.Normalize(block.Text);
+                    latestImage = null;
+                    continue;
+                }
+
+                if (options.Profile == ConversionProfile.KindleTechnicalBook && TryCreateList(block, out var list))
+                {
+                    currentChapter.Blocks.Add(list);
                     continue;
                 }
 
@@ -306,6 +322,40 @@ public sealed partial class BookDocumentBuilder(IHeadingDetector headingDetector
 
     [GeneratedRegex(@"^\s*(?<marker>\d{1,2}|[¹²³⁴⁵⁶⁷⁸⁹⁰])\s*[\).:]?\s+(?<body>.+)$", RegexOptions.CultureInvariant)]
     private static partial Regex FootnoteRegex();
+
+    private static bool TryCreateList(PdfBlock block, out ListBlock list)
+    {
+        list = new ListBlock
+        {
+            BlockType = LayoutBlockType.List,
+            SourcePageNumber = block.PageNumber,
+            Ordered = block.Lines.Count > 0 && OrderedListMarkerRegex().IsMatch(block.Lines[0].Text)
+        };
+        var items = block.Lines
+            .Select(line => ListMarkerRegex().Match(line.Text))
+            .Where(match => match.Success)
+            .Select(match => TextNormalizer.Normalize(match.Groups["text"].Value))
+            .Where(text => !string.IsNullOrWhiteSpace(text))
+            .ToArray();
+        if (items.Length < 2 || items.Length < Math.Ceiling(block.Lines.Count * 0.6))
+        {
+            return false;
+        }
+
+        list.Items.AddRange(items);
+        return true;
+    }
+
+    private static bool IsCaption(PdfBlock block) => CaptionRegex().IsMatch(block.Text) && block.Text.Length <= 180;
+
+    [GeneratedRegex(@"^\s*(?:[-*•▪‣]|\d+[.)])\s*(?<text>.+)$", RegexOptions.CultureInvariant)]
+    private static partial Regex ListMarkerRegex();
+
+    [GeneratedRegex(@"^\s*\d+[.)]\s+", RegexOptions.CultureInvariant)]
+    private static partial Regex OrderedListMarkerRegex();
+
+    [GeneratedRegex(@"^\s*(?:hình|figure)\s*\d+", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex CaptionRegex();
 
     private sealed record PageElement(double Top, PdfBlock? Block, PdfExtractedImage? Image);
 

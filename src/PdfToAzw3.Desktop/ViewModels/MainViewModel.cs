@@ -551,6 +551,10 @@ public sealed class MainViewModel : ObservableObject
         }
 
         Options.Profile = Recommendation.Profile;
+        if (Recommendation.Profile == ConversionProfile.KindleTechnicalBook)
+        {
+            Options.ParagraphStyle = ParagraphStyle.Document;
+        }
         OnPropertyChanged(nameof(Options));
         IsAnalyzed = false;
         StatusMessage = $"Đã áp dụng đề xuất: {Recommendation.Label}. Hãy Analyze lại trước khi Convert.";
