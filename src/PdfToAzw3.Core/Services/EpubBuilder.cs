@@ -393,7 +393,9 @@ public sealed class EpubBuilder : IEpubBuilder
 
     private static string BuildCss(ConversionOptions options)
     {
-        var paragraphRules = options.ParagraphStyle switch
+        var paragraphRules = options.Profile == ConversionProfile.KindleTechnicalBook
+            ? "margin: 0 0 0.8em 0; text-indent: 0;"
+            : options.ParagraphStyle switch
         {
             ParagraphStyle.Document => "margin: 0 0 0.8em 0; text-indent: 0;",
             ParagraphStyle.Compact => "margin: 0 0 0.2em 0; text-indent: 0.8em;",

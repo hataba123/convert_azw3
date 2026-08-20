@@ -132,7 +132,7 @@ public sealed partial class BookDocumentBuilder(IHeadingDetector headingDetector
                     continue;
                 }
 
-                if (TableDetector.TryCreate(block, out var table))
+                if (TableDetector.TryCreate(block, out var table, options.Profile == ConversionProfile.KindleTechnicalBook))
                 {
                     currentChapter.Blocks.Add(table);
                     continue;

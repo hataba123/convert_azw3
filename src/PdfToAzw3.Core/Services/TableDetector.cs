@@ -4,7 +4,7 @@ namespace PdfToAzw3.Core.Services;
 
 internal static class TableDetector
 {
-    public static bool TryCreate(PdfBlock block, out TableBlock table)
+    public static bool TryCreate(PdfBlock block, out TableBlock table, bool technicalMode = false)
     {
         table = new TableBlock
         {
@@ -19,7 +19,9 @@ internal static class TableDetector
         }
 
         var columnCount = block.Lines.Max(line => line.Words.Count);
-        if (columnCount < 2 || columnCount > 8 || block.Lines.Any(line => line.Words.Count != columnCount))
+        var maximumColumns = technicalMode ? 4 : 8;
+        var maximumRows = technicalMode ? 40 : int.MaxValue;
+        if (columnCount < 2 || columnCount > maximumColumns || block.Lines.Count > maximumRows || block.Lines.Any(line => line.Words.Count != columnCount))
         {
             return false;
         }

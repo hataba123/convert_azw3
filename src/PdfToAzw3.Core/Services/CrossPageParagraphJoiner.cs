@@ -12,7 +12,7 @@ internal static class CrossPageParagraphJoiner
         ConversionOptions options,
         CancellationToken cancellationToken)
     {
-        if (!options.SmartReflow || options.Profile is ConversionProfile.FixedLayout or ConversionProfile.PreserveLayout)
+        if (!options.SmartReflow || options.Profile is ConversionProfile.FixedLayout or ConversionProfile.PreserveLayout or ConversionProfile.KindleTechnicalBook)
         {
             return (0, 0);
         }
