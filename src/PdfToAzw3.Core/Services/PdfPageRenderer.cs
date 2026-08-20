@@ -53,7 +53,7 @@ public sealed class DocNetPdfPageRenderer : IPdfPageRenderer
         var pixelHeight = page.GetPageHeight();
         var bgra = page.GetImage();
         var png = PngEncoder.EncodeBgra(bgra, pixelWidth, pixelHeight);
-        return new RenderedPdfPage(pageNumber + 1, pixelWidth, pixelHeight, pdfWidth, pdfHeight, png, safeDpi);
+        return new RenderedPdfPage(pageNumber + 1, pixelWidth, pixelHeight, pdfWidth, pdfHeight, png, safeDpi, bgra);
     }
 }
 

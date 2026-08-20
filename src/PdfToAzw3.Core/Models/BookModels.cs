@@ -116,4 +116,10 @@ public sealed class FixedLayoutPage
     public required string ResourceId { get; init; }
 
     public required string FileName { get; init; }
+
+    public bool IsOverview { get; init; }
+
+    public int RegionIndex { get; init; }
+
+    public string Label { get; init; } = string.Empty;
 }

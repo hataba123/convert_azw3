@@ -32,7 +32,9 @@ public sealed class EbookConversionService(
                     analysis.File.FullPath,
                     analysis.Pages,
                     analysis.Book,
-                    options.FixedLayoutDpi,
+                    options.FixedLayoutPresentation == FixedLayoutPresentation.OverviewAndRegions
+                        ? options.FixedLayoutRegionDpi
+                        : options.FixedLayoutDpi,
                     progress,
                     cancellationToken).ConfigureAwait(false);
             }

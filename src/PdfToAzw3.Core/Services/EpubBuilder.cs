@@ -116,10 +116,10 @@ public sealed class EpubBuilder : IEpubBuilder
         {
             cancellationToken.ThrowIfCancellationRequested();
             var page = pages[index];
-            var pagePath = $"OEBPS/text/page{page.PageNumber:0000}.xhtml";
-            var pageId = $"page-{page.PageNumber:0000}";
+            var pagePath = $"OEBPS/text/page{index + 1:0000}.xhtml";
+            var pageId = $"page-{index + 1:0000}";
             pagePaths.Add((page, pagePath, pageId));
-            WriteEntry(archive, pagePath, BuildFixedPageXhtml(page, metadata));
+            WriteEntry(archive, pagePath, BuildFixedPageXhtml(page, metadata, pageId));
             progress?.Report(new ConversionProgress(
                 "Building Fixed Layout EPUB",
                 0.82 + 0.08 * (index + 1) / pages.Length,
@@ -142,10 +142,10 @@ public sealed class EpubBuilder : IEpubBuilder
         return fullPath;
     }
 
-    private static string BuildFixedPageXhtml(FixedLayoutPage page, BookMetadata metadata)
+    private static string BuildFixedPageXhtml(FixedLayoutPage page, BookMetadata metadata, string pageId)
     {
         var language = DetectLanguage(metadata);
-        return $"<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<html xmlns=\"http://www.w3.org/1999/xhtml\" lang=\"{language}\" xml:lang=\"{language}\"><head><title>Trang {page.PageNumber}</title><meta name=\"viewport\" content=\"width={page.PixelWidth}, height={page.PixelHeight}\" /><link rel=\"stylesheet\" type=\"text/css\" href=\"../styles/fixed-layout.css\" /></head><body id=\"page-{page.PageNumber}\"><img src=\"../images/{EscapeAttribute(page.FileName)}\" width=\"{page.PixelWidth}\" height=\"{page.PixelHeight}\" alt=\"Trang {page.PageNumber}\" /></body></html>";
+        return $"<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<html xmlns=\"http://www.w3.org/1999/xhtml\" lang=\"{language}\" xml:lang=\"{language}\"><head><title>{Escape(page.Label)}</title><meta name=\"viewport\" content=\"width={page.PixelWidth}, height={page.PixelHeight}\" /><link rel=\"stylesheet\" type=\"text/css\" href=\"../styles/fixed-layout.css\" /></head><body id=\"{pageId}\"><img src=\"../images/{EscapeAttribute(page.FileName)}\" width=\"{page.PixelWidth}\" height=\"{page.PixelHeight}\" alt=\"Trang {page.PageNumber}: {EscapeAttribute(page.Label)}\" /></body></html>";
     }
 
     private static string BuildFixedNavigation(
@@ -155,7 +155,7 @@ public sealed class EpubBuilder : IEpubBuilder
         var builder = new StringBuilder($"<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<html xmlns=\"http://www.w3.org/1999/xhtml\" xmlns:epub=\"http://www.idpf.org/2007/ops\" lang=\"{DetectLanguage(metadata)}\"><head><title>Contents</title></head><body><nav epub:type=\"toc\" id=\"toc\"><h1>Pages</h1><ol>\n");
         foreach (var item in pages)
         {
-            builder.Append($"<li><a href=\"text/{Path.GetFileName(item.Path)}#page-{item.Page.PageNumber}\">Trang {item.Page.PageNumber}</a></li>\n");
+            builder.Append($"<li><a href=\"text/{Path.GetFileName(item.Path)}#{item.Id}\">Trang {item.Page.PageNumber} - {Escape(item.Page.Label)}</a></li>\n");
         }
 
         builder.Append("</ol></nav></body></html>");
@@ -171,7 +171,7 @@ public sealed class EpubBuilder : IEpubBuilder
         for (var index = 0; index < pages.Count; index++)
         {
             var item = pages[index];
-            builder.Append($"<navPoint id=\"{item.Id}\" playOrder=\"{index + 1}\"><navLabel><text>Trang {item.Page.PageNumber}</text></navLabel><content src=\"text/{Path.GetFileName(item.Path)}#page-{item.Page.PageNumber}\" /></navPoint>");
+            builder.Append($"<navPoint id=\"{item.Id}\" playOrder=\"{index + 1}\"><navLabel><text>Trang {item.Page.PageNumber} - {Escape(item.Page.Label)}</text></navLabel><content src=\"text/{Path.GetFileName(item.Path)}#{item.Id}\" /></navPoint>");
         }
 
         builder.Append("</navMap></ncx>");

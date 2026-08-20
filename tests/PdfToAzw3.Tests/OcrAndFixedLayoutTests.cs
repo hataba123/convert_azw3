@@ -65,7 +65,7 @@ public sealed class OcrAndFixedLayoutTests
         using var archive = ZipFile.OpenRead(epubPath);
         var opf = ReadEntry(archive, "OEBPS/content.opf");
         Assert.Contains("rendition:layout\">pre-paginated", opf);
-        Assert.NotNull(archive.GetEntry("OEBPS/images/fixed-page-0001.png"));
+        Assert.NotNull(archive.GetEntry("OEBPS/images/fixed-page-0001-00.png"));
         var page = ReadEntry(archive, "OEBPS/text/page0001.xhtml");
         Assert.Contains("fixed-page-0001.png", page);
         Assert.Contains("viewport", page);

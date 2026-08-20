@@ -24,7 +24,8 @@ public sealed record RenderedPdfPage(
     double PdfWidth,
     double PdfHeight,
     byte[] PngContent,
-    int Dpi);
+    int Dpi,
+    byte[]? BgraContent = null);
 
 public interface IPdfPageRenderer
 {
