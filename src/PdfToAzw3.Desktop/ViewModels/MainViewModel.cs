@@ -40,6 +40,7 @@ public sealed class MainViewModel : ObservableObject
     private bool _isDarkMode;
     private AnalysisOptionsSnapshot? _analysisOptionsSnapshot;
     private ChapterListItem? _selectedChapter;
+    private ConversionRecommendation? _recommendation;
 
     public MainViewModel(
         IFileDialogService fileDialogService,
@@ -70,6 +71,7 @@ public sealed class MainViewModel : ObservableObject
         _openOutputFolderCommand = new RelayCommand(OpenOutputFolder, () => File.Exists(OutputPath));
         OpenOutputFolderCommand = _openOutputFolderCommand;
         OpenKindlePreviewerCommand = new RelayCommand(OpenKindlePreviewer, () => File.Exists(EpubOutputPath));
+        ApplyRecommendationCommand = new RelayCommand(ApplyRecommendation, () => Recommendation is not null && !IsBusy);
         CancelCommand = new RelayCommand(CancelAnalysis, () => IsBusy);
     }
 
@@ -82,6 +84,21 @@ public sealed class MainViewModel : ObservableObject
     public ConversionOptions Options { get; }
 
     public AnalysisSummary Summary { get; private set; }
+
+    public ConversionRecommendation? Recommendation
+    {
+        get => _recommendation;
+        private set
+        {
+            if (SetProperty(ref _recommendation, value))
+            {
+                OnPropertyChanged(nameof(HasRecommendation));
+                (ApplyRecommendationCommand as RelayCommand)?.RaiseCanExecuteChanged();
+            }
+        }
+    }
+
+    public bool HasRecommendation => Recommendation is not null;
 
     public ObservableCollection<ChapterListItem> Chapters { get; }
 
@@ -114,6 +131,8 @@ public sealed class MainViewModel : ObservableObject
     public ICommand OpenOutputFolderCommand { get; }
 
     public ICommand OpenKindlePreviewerCommand { get; }
+
+    public ICommand ApplyRecommendationCommand { get; }
 
     public PdfFileInfo? InputFile
     {
@@ -278,6 +297,7 @@ public sealed class MainViewModel : ObservableObject
                 _conversionCancellation.Token);
 
             _analysisResult = result;
+            Recommendation = result.Recommendation;
             _analysisOptionsSnapshot = AnalysisOptionsSnapshot.Create(Options);
             InputFile = result.File;
             Summary = result.Summary;
@@ -523,6 +543,19 @@ public sealed class MainViewModel : ObservableObject
         StatusMessage = "Đã mở EPUB trung gian trong Kindle Previewer.";
     }
 
+    private void ApplyRecommendation()
+    {
+        if (Recommendation is null)
+        {
+            return;
+        }
+
+        Options.Profile = Recommendation.Profile;
+        OnPropertyChanged(nameof(Options));
+        IsAnalyzed = false;
+        StatusMessage = $"Đã áp dụng đề xuất: {Recommendation.Label}. Hãy Analyze lại trước khi Convert.";
+    }
+
     public bool TryLoadPdf(string path)
     {
         ErrorMessage = null;
@@ -558,6 +591,7 @@ public sealed class MainViewModel : ObservableObject
         OnPropertyChanged(nameof(HasWarnings));
         IsAnalyzed = false;
         _analysisResult = null;
+        Recommendation = null;
         _analysisOptionsSnapshot = null;
         PreviewContent = string.Empty;
         OutputPath = string.Empty;
@@ -572,6 +606,7 @@ public sealed class MainViewModel : ObservableObject
         _conversionCancellation?.Cancel();
         InputFile = null;
         _analysisResult = null;
+        Recommendation = null;
         _analysisOptionsSnapshot = null;
         PreviewContent = string.Empty;
         OutputPath = string.Empty;

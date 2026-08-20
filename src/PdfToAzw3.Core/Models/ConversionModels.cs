@@ -32,6 +32,12 @@ public enum KindleDeviceProfile
     Scribe
 }
 
+public enum FixedLayoutPresentation
+{
+    FullPage,
+    OverviewAndRegions
+}
+
 public enum LayoutBlockType
 {
     Unknown,
@@ -124,6 +130,14 @@ public sealed class ConversionOptions
 
     public int FixedLayoutDpi { get; set; } = 150;
 
+    public FixedLayoutPresentation FixedLayoutPresentation { get; set; } = FixedLayoutPresentation.OverviewAndRegions;
+
+    public int FixedLayoutRegionDpi { get; set; } = 300;
+
+    public double FixedLayoutRegionOverlap { get; set; } = 0.05;
+
+    public bool EnhanceScannedPages { get; set; } = true;
+
     public string? CalibreExecutablePath { get; set; }
 }
 
@@ -179,6 +193,19 @@ public sealed class ConversionQuality
 }
 
 public sealed record AnalysisWarning(string Message, int? PageNumber = null, string Severity = "Warning");
+
+public sealed record ConversionRecommendation(
+    ConversionProfile Profile,
+    double Confidence,
+    IReadOnlyList<string> Reasons)
+{
+    public string Label => Profile switch
+    {
+        ConversionProfile.FixedLayout => "Fixed Layout",
+        ConversionProfile.KindleTechnicalBook => "Kindle Technical Book",
+        _ => "Kindle Novel"
+    };
+}
 
 public sealed record ConversionProgress(
     string Stage,

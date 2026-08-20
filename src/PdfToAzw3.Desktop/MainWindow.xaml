@@ -145,6 +145,13 @@
 
                     <Border Margin="0,16,0,0" Style="{StaticResource CardBorder}">
                         <StackPanel>
+                            <Border Margin="0,0,0,14" Padding="10" Background="{DynamicResource SurfaceMutedBrush}" CornerRadius="8" Visibility="{Binding HasRecommendation, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                    <StackPanel><TextBlock FontWeight="SemiBold" Text="{Binding Recommendation.Label}" /><TextBlock Margin="0,3,0,0" Style="{StaticResource CaptionText}" Text="{Binding Recommendation.Reasons[0]}" /></StackPanel>
+                                    <Button Grid.Column="1" Padding="12,7" Command="{Binding ApplyRecommendationCommand}" Style="{StaticResource SecondaryButton}" Content="Áp dụng" />
+                                </Grid>
+                            </Border>
                             <TextBlock Style="{StaticResource SectionTitle}" Text="Thiết lập chuyển đổi" />
                             <Grid>
                                 <Grid.ColumnDefinitions>

@@ -160,6 +160,7 @@ public sealed class PdfPigDocumentReader(
             DocumentKind = kind,
             Quality = quality
         };
+        var recommendation = ConversionRecommendationAnalyzer.Analyze(pages, kind);
 
         logger?.Info($"PDF analysis completed: pages={summary.Pages}, chapters={summary.Chapters}, paragraphs={summary.Paragraphs}, images={summary.Images}, ocrPages={summary.OcrPages}, quality={summary.Quality.Score}");
         foreach (var warning in warnings)
@@ -172,7 +173,8 @@ public sealed class PdfPigDocumentReader(
         {
             File = new PdfFileInfo(fileInfo.FullName, fileInfo.Name, fileInfo.Length, pages.Count, kind),
             Summary = summary,
-            Book = book
+            Book = book,
+            Recommendation = recommendation
         };
         result.Pages.AddRange(pages);
         result.Warnings.AddRange(warnings);

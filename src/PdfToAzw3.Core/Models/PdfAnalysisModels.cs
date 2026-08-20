@@ -111,6 +111,8 @@ public sealed class PdfAnalysisResult
 
     public List<AnalysisWarning> Warnings { get; } = [];
 
+    public ConversionRecommendation? Recommendation { get; init; }
+
     public required AnalysisSummary Summary { get; init; }
 
     public required BookDocument Book { get; init; }
