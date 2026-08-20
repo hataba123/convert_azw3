@@ -30,6 +30,7 @@ public sealed class OcrAndFixedLayoutTests
         Assert.Equal(100, result.Summary.Quality.OcrPercentage);
         Assert.True(result.Pages[0].HasText);
         Assert.True(result.Pages[0].OcrApplied);
+        Assert.Equal(ConversionProfile.FixedLayout, result.Recommendation!.Profile);
         Assert.Contains(
             result.Book.Chapters.SelectMany(chapter => chapter.Blocks).OfType<ParagraphBlock>(),
             paragraph => paragraph.Text.Contains("OCR text", StringComparison.Ordinal));
