@@ -115,7 +115,7 @@ internal static partial class ConversionRecommendationAnalyzer
     private static bool IsLikelyHeading(PdfBlock block, double medianFontSize) =>
         block.Text.Length <= 120 &&
         (block.IsBold || (medianFontSize > 0 && block.FontSize >= medianFontSize * 1.16)) &&
-        !IsLikelyList(block) && !FootnotePattern().IsMatch(block.Text);
+        !IsLikelyList(block);
 
     private static bool IsLikelyList(PdfBlock block) => block.Lines.Count >= 2 &&
         block.Lines.Count(line => ListMarkerPattern().IsMatch(line.Text)) >= Math.Ceiling(block.Lines.Count * 0.6);
