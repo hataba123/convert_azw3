@@ -72,8 +72,16 @@ public sealed class CalibreService(IAppLogger? logger = null) : ICalibreService
         startInfo.ArgumentList.Add(epubPath);
         startInfo.ArgumentList.Add(azw3Path);
         startInfo.ArgumentList.Add("--output-profile");
-        startInfo.ArgumentList.Add(GetOutputProfile(options.Profile));
-        logger?.Info($"ebook-convert command: {executable} {epubPath} {azw3Path} --output-profile {GetOutputProfile(options.Profile)}");
+        var outputProfile = GetOutputProfile(options.TargetDevice);
+        startInfo.ArgumentList.Add(outputProfile);
+        if (options.GenerateTableOfContents)
+        {
+            startInfo.ArgumentList.Add("--no-inline-toc");
+        }
+
+        var version = FileVersionInfo.GetVersionInfo(executable).ProductVersion ?? "không xác định";
+        logger?.Info($"Calibre version: {version}");
+        logger?.Info($"ebook-convert command: {executable} {epubPath} {azw3Path} --output-profile {outputProfile}{(options.GenerateTableOfContents ? " --no-inline-toc" : string.Empty)}");
 
         using var process = new Process { StartInfo = startInfo, EnableRaisingEvents = true };
         progress?.Report(new ConversionProgress("Generating AZW3", 0.94, Detail: "Đang chạy Calibre ebook-convert"));
@@ -97,6 +105,15 @@ public sealed class CalibreService(IAppLogger? logger = null) : ICalibreService
 
         var standardOutput = await standardOutputTask.ConfigureAwait(false);
         var standardError = await standardErrorTask.ConfigureAwait(false);
+        if (!string.IsNullOrWhiteSpace(standardOutput))
+        {
+            logger?.Info($"Calibre output: {standardOutput.Trim()}");
+        }
+
+        if (!string.IsNullOrWhiteSpace(standardError))
+        {
+            logger?.Warning($"Calibre warning: {standardError.Trim()}");
+        }
         if (process.ExitCode != 0)
         {
             var detail = string.IsNullOrWhiteSpace(standardError) ? standardOutput : standardError;
@@ -161,13 +178,12 @@ public sealed class CalibreService(IAppLogger? logger = null) : ICalibreService
         }
     }
 
-    private static string GetOutputProfile(ConversionProfile profile) => profile switch
+    internal static string GetOutputProfile(KindleDeviceProfile profile) => profile switch
     {
-        ConversionProfile.KindleNovel => "kindle",
-        ConversionProfile.KindleTechnicalBook => "kindle",
-        ConversionProfile.PreserveLayout => "kindle",
-        ConversionProfile.FixedLayout => "kindle",
-        _ => "kindle"
+        KindleDeviceProfile.Oasis => "kindle_oasis",
+        KindleDeviceProfile.Scribe => "kindle_scribe",
+        KindleDeviceProfile.Standard => "kindle",
+        _ => "kindle_pw3"
     };
 }
 

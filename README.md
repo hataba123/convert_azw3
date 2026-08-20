@@ -10,6 +10,7 @@ PDF
   → line grouping
   → column reading order
   → paragraph / hyphen / Unicode normalization
+  → cross-page paragraph joining + inline bold/italic/superscript
   → header, footer, page number filtering
   → heading, chapter, table, code, footnote, image heuristics
   → BookDocument semantic model
@@ -42,10 +43,12 @@ dotnet run --project src/PdfToAzw3.Desktop/PdfToAzw3.Desktop.csproj
 1. Chọn PDF hoặc kéo thả PDF vào cửa sổ.
 2. Kiểm tra title, author, language, description và cover.
 3. Chọn profile và paragraph style.
+   Với Kindle/Paperwhite 6–7 inch, giữ thiết bị mặc định **Kindle Paperwhite**; ứng dụng sẽ dùng profile Calibre `kindle_pw3`.
 4. Nếu PDF là scan, bật **OCR fallback cho trang scan**, chọn ngôn ngữ nếu cần rồi bấm **Analyze**. Windows OCR cần language pack tương ứng.
 5. Bấm **Analyze** để đọc glyph, phân tích layout và xem quality score/warnings.
 6. Bấm **Preview Ebook** để xem nội dung semantic đã phục hồi.
 7. Bấm **Convert to AZW3**. EPUB trung gian được tạo cạnh PDF, validate trước khi Calibre chạy; AZW3 mặc định dùng tên PDF.
+8. Nếu đã cài Kindle Previewer 3, bấm **Mở Kindle Previewer** để kiểm tra EPUB ở nhiều cỡ chữ và chế độ nền.
 
 Profile **Kindle Auto** ưu tiên BookDocument semantic/reflowable. Profile **Fixed Layout** render từng trang PDF thành PNG, tạo XHTML có viewport đúng kích thước trang và đánh dấu EPUB là `pre-paginated`; vì vậy file có thể lớn hơn đáng kể.
 
@@ -62,6 +65,7 @@ Test hiện bao phủ:
 - heading/chapter và table heuristic;
 - PdfPig đọc PDF thật;
 - EPUB XML/ZIP, navigation, code, footnote, image và cover resource;
+- paragraph xuyên trang, inline bold/italic, UUID riêng, HTML TOC và kiểm tra liên kết nội bộ;
 - OCR fallback qua abstraction và Fixed Layout rasterization từng trang.
 
 ## Log và output

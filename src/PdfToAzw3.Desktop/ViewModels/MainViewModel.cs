@@ -38,6 +38,8 @@ public sealed class MainViewModel : ObservableObject
     private string _previewContent = string.Empty;
     private string _outputPath = string.Empty;
     private bool _isDarkMode;
+    private AnalysisOptionsSnapshot? _analysisOptionsSnapshot;
+    private ChapterListItem? _selectedChapter;
 
     public MainViewModel(
         IFileDialogService fileDialogService,
@@ -67,6 +69,7 @@ public sealed class MainViewModel : ObservableObject
         ConvertCommand = _convertCommand;
         _openOutputFolderCommand = new RelayCommand(OpenOutputFolder, () => File.Exists(OutputPath));
         OpenOutputFolderCommand = _openOutputFolderCommand;
+        OpenKindlePreviewerCommand = new RelayCommand(OpenKindlePreviewer, () => File.Exists(EpubOutputPath));
         CancelCommand = new RelayCommand(CancelAnalysis, () => IsBusy);
     }
 
@@ -83,6 +86,12 @@ public sealed class MainViewModel : ObservableObject
     public ObservableCollection<ChapterListItem> Chapters { get; }
 
     public ObservableCollection<AnalysisWarning> Warnings { get; }
+
+    public ChapterListItem? SelectedChapter
+    {
+        get => _selectedChapter;
+        set => SetProperty(ref _selectedChapter, value);
+    }
 
     public ICommand ChoosePdfCommand { get; }
 
@@ -103,6 +112,8 @@ public sealed class MainViewModel : ObservableObject
     public ICommand CancelCommand { get; }
 
     public ICommand OpenOutputFolderCommand { get; }
+
+    public ICommand OpenKindlePreviewerCommand { get; }
 
     public PdfFileInfo? InputFile
     {
@@ -201,6 +212,8 @@ public sealed class MainViewModel : ObservableObject
             if (SetProperty(ref _outputPath, value))
             {
                 _openOutputFolderCommand.RaiseCanExecuteChanged();
+                OnPropertyChanged(nameof(EpubOutputPath));
+                (OpenKindlePreviewerCommand as RelayCommand)?.RaiseCanExecuteChanged();
             }
         }
     }
@@ -208,6 +221,8 @@ public sealed class MainViewModel : ObservableObject
     public string CoverPath => Metadata.CoverPath ?? "Chưa chọn cover";
 
     public string CalibrePath => Options.CalibreExecutablePath ?? "Tự động tìm ebook-convert.exe";
+
+    public string EpubOutputPath => string.IsNullOrWhiteSpace(OutputPath) ? string.Empty : Path.ChangeExtension(OutputPath, ".epub");
 
     public bool HasWarnings => Warnings.Count > 0;
 
@@ -263,6 +278,7 @@ public sealed class MainViewModel : ObservableObject
                 _conversionCancellation.Token);
 
             _analysisResult = result;
+            _analysisOptionsSnapshot = AnalysisOptionsSnapshot.Create(Options);
             InputFile = result.File;
             Summary = result.Summary;
             OnPropertyChanged(nameof(Summary));
@@ -277,6 +293,7 @@ public sealed class MainViewModel : ObservableObject
             {
                 Chapters.Add(new ChapterListItem(chapter.Title, chapter.Level, chapter.SourcePageNumber));
             }
+            SelectedChapter = Chapters.FirstOrDefault();
 
             IsAnalyzed = true;
             ProgressValue = 1;
@@ -324,16 +341,24 @@ public sealed class MainViewModel : ObservableObject
         }
 
         var preview = new List<string>();
-        foreach (var chapter in _analysisResult.Book.Chapters.Take(3))
+        var selectedBookChapter = SelectedChapter is null
+            ? _analysisResult.Book.Chapters.FirstOrDefault()
+            : _analysisResult.Book.Chapters.FirstOrDefault(chapter =>
+                chapter.SourcePageNumber == SelectedChapter.PageNumber && chapter.Title == SelectedChapter.Title);
+        foreach (var chapter in selectedBookChapter is null ? [] : new[] { selectedBookChapter })
         {
             preview.Add(chapter.Title);
             preview.Add(new string('=', Math.Min(60, Math.Max(10, chapter.Title.Length + 4))));
-            preview.AddRange(chapter.Blocks.Take(8).Select(block => block switch
+            preview.AddRange(chapter.Blocks.Select(block => block switch
             {
-                HeadingBlock heading => $"\n{heading.Text}",
+                HeadingBlock heading => $"\n## {heading.Text}",
                 QuoteBlock quote => $"“{quote.Text}”",
-                ParagraphBlock paragraph => paragraph.Text,
-                _ => string.Empty
+                ParagraphBlock paragraph => FormatPreviewParagraph(paragraph),
+                FootnoteBlock footnote => $"[{footnote.Marker}] {footnote.Text}",
+                ListBlock list => string.Join(Environment.NewLine, list.Items.Select((item, index) => list.Ordered ? $"{index + 1}. {item}" : $"• {item}")),
+                TableBlock table => string.Join(Environment.NewLine, table.Rows.Select(row => string.Join(" | ", row))),
+                ImageBlock image => $"[Hình ảnh: {image.Caption ?? image.ResourceId}]",
+                _ => $"[{block.BlockType}]"
             }));
             preview.Add(string.Empty);
         }
@@ -348,6 +373,14 @@ public sealed class MainViewModel : ObservableObject
     {
         if (_analysisResult is null || InputFile is null)
         {
+            return;
+        }
+
+        if (_analysisOptionsSnapshot != AnalysisOptionsSnapshot.Create(Options))
+        {
+            IsAnalyzed = false;
+            ErrorMessage = "Thiết lập phân tích đã thay đổi. Hãy bấm Analyze lại trước khi chuyển đổi.";
+            StatusMessage = "Kết quả phân tích cũ không còn phù hợp với thiết lập hiện tại.";
             return;
         }
 
@@ -371,6 +404,11 @@ public sealed class MainViewModel : ObservableObject
                 progress,
                 _conversionCancellation.Token);
             OutputPath = output.Azw3Path;
+            foreach (var warning in _analysisResult.Book.Warnings.Where(warning => !Warnings.Contains(warning)))
+            {
+                Warnings.Add(warning);
+            }
+            OnPropertyChanged(nameof(HasWarnings));
             ProgressValue = 1;
             ProgressStage = "Conversion complete";
             StatusMessage = $"Đã tạo AZW3: {Path.GetFileName(output.Azw3Path)} ({FormatFileSize(output.Azw3SizeBytes)}).";
@@ -454,6 +492,37 @@ public sealed class MainViewModel : ObservableObject
         });
     }
 
+    private void OpenKindlePreviewer()
+    {
+        if (!File.Exists(EpubOutputPath))
+        {
+            return;
+        }
+
+        var programFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
+        var programFilesX86 = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86);
+        var candidates = new[]
+        {
+            Path.Combine(programFiles, "Amazon", "Kindle Previewer 3", "Kindle Previewer 3.exe"),
+            Path.Combine(programFilesX86, "Amazon", "Kindle Previewer 3", "Kindle Previewer 3.exe"),
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Amazon", "Kindle Previewer 3", "Kindle Previewer 3.exe")
+        };
+        var executable = candidates.FirstOrDefault(File.Exists);
+        if (executable is null)
+        {
+            ErrorMessage = "Không tìm thấy Kindle Previewer 3. EPUB trung gian vẫn có thể mở bằng Calibre Viewer.";
+            return;
+        }
+
+        Process.Start(new ProcessStartInfo
+        {
+            FileName = executable,
+            Arguments = $"\"{EpubOutputPath}\"",
+            UseShellExecute = true
+        });
+        StatusMessage = "Đã mở EPUB trung gian trong Kindle Previewer.";
+    }
+
     public bool TryLoadPdf(string path)
     {
         ErrorMessage = null;
@@ -484,10 +553,12 @@ public sealed class MainViewModel : ObservableObject
         Summary = new AnalysisSummary();
         OnPropertyChanged(nameof(Summary));
         Chapters.Clear();
+        SelectedChapter = null;
         Warnings.Clear();
         OnPropertyChanged(nameof(HasWarnings));
         IsAnalyzed = false;
         _analysisResult = null;
+        _analysisOptionsSnapshot = null;
         PreviewContent = string.Empty;
         OutputPath = string.Empty;
         ProgressValue = 0;
@@ -501,9 +572,11 @@ public sealed class MainViewModel : ObservableObject
         _conversionCancellation?.Cancel();
         InputFile = null;
         _analysisResult = null;
+        _analysisOptionsSnapshot = null;
         PreviewContent = string.Empty;
         OutputPath = string.Empty;
         Chapters.Clear();
+        SelectedChapter = null;
         Warnings.Clear();
         OnPropertyChanged(nameof(HasWarnings));
         IsAnalyzed = false;
@@ -524,6 +597,30 @@ public sealed class MainViewModel : ObservableObject
             : $"{Math.Max(1, sizeBytes / kiloByte):0} KB";
     }
 
+    private static string FormatPreviewParagraph(ParagraphBlock paragraph)
+    {
+        if (paragraph.InlineRuns.Count == 0)
+        {
+            return paragraph.Text;
+        }
+
+        return string.Concat(paragraph.InlineRuns.Select(run =>
+        {
+            var text = run.Text;
+            if (run.IsBold)
+            {
+                text = $"**{text}**";
+            }
+
+            if (run.IsItalic)
+            {
+                text = $"_{text}_";
+            }
+
+            return run.IsSuperscript ? $"^({text})" : text;
+        }));
+    }
+
     private void RaiseCommandStates()
     {
         (ClearPdfCommand as RelayCommand)?.RaiseCanExecuteChanged();
@@ -532,5 +629,34 @@ public sealed class MainViewModel : ObservableObject
         _convertCommand.RaiseCanExecuteChanged();
         (CancelCommand as RelayCommand)?.RaiseCanExecuteChanged();
         _openOutputFolderCommand.RaiseCanExecuteChanged();
+    }
+
+    private sealed record AnalysisOptionsSnapshot(
+        ConversionProfile Profile,
+        bool SmartReflow,
+        bool RemoveRepeatedHeaders,
+        bool RemoveRepeatedFooters,
+        bool RemovePageNumbers,
+        bool RepairHyphenatedWords,
+        bool PreserveImages,
+        bool DetectChapters,
+        bool EnableOcrFallback,
+        string OcrLanguage,
+        int OcrDpi,
+        double OcrConfidenceThreshold)
+    {
+        public static AnalysisOptionsSnapshot Create(ConversionOptions options) => new(
+            options.Profile,
+            options.SmartReflow,
+            options.RemoveRepeatedHeaders,
+            options.RemoveRepeatedFooters,
+            options.RemovePageNumbers,
+            options.RepairHyphenatedWords,
+            options.PreserveImages,
+            options.DetectChapters,
+            options.EnableOcrFallback,
+            options.OcrLanguage,
+            options.OcrDpi,
+            options.OcrConfidenceThreshold);
     }
 }

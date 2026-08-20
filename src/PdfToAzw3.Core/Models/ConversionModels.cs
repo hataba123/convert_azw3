@@ -24,6 +24,14 @@ public enum ParagraphStyle
     Compact
 }
 
+public enum KindleDeviceProfile
+{
+    Paperwhite,
+    Standard,
+    Oasis,
+    Scribe
+}
+
 public enum LayoutBlockType
 {
     Unknown,
@@ -88,6 +96,8 @@ public sealed class ConversionOptions
 
     public ParagraphStyle ParagraphStyle { get; set; } = ParagraphStyle.Book;
 
+    public KindleDeviceProfile TargetDevice { get; set; } = KindleDeviceProfile.Paperwhite;
+
     public bool SmartReflow { get; set; } = true;
 
     public bool RemoveRepeatedHeaders { get; set; } = true;
@@ -134,6 +144,10 @@ public sealed class AnalysisSummary
     public int Paragraphs { get; set; }
 
     public int OcrPages { get; set; }
+
+    public int CrossPageParagraphsJoined { get; set; }
+
+    public int SuspectedSplitParagraphs { get; set; }
 
     public PdfDocumentKind DocumentKind { get; set; }
 

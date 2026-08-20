@@ -120,6 +120,94 @@ public sealed class EpubPipelineTests
         Assert.NotNull(archive.GetEntry("OEBPS/images/image-001.png"));
     }
 
+    [Fact]
+    public async Task EpubBuilder_PreservesInlineStylesAndCreatesValidFootnoteBacklink()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "PdfToAzw3Tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        var epubPath = Path.Combine(root, "styles.epub");
+        var book = new BookDocument { Metadata = new BookMetadata { Title = "Styles" } };
+        var chapter = new BookChapter { Title = "Chapter", AnchorId = "chapter-1", SourcePageNumber = 1 };
+        var paragraph = new ParagraphBlock { BlockType = LayoutBlockType.Paragraph, Text = "Chữ đậm và nghiêng¹", SourcePageNumber = 1 };
+        paragraph.InlineRuns.Add(new BookTextRun("Chữ "));
+        paragraph.InlineRuns.Add(new BookTextRun("đậm", IsBold: true));
+        paragraph.InlineRuns.Add(new BookTextRun(" và "));
+        paragraph.InlineRuns.Add(new BookTextRun("nghiêng", IsItalic: true));
+        paragraph.InlineRuns.Add(new BookTextRun("¹", IsSuperscript: true));
+        paragraph.FootnoteReferences.Add(new FootnoteReference("¹", "fn-1", "fnref-1"));
+        chapter.Blocks.Add(paragraph);
+        chapter.Blocks.Add(new FootnoteBlock
+        {
+            BlockType = LayoutBlockType.Footnote,
+            Marker = "1",
+            Text = "Ghi chú.",
+            AnchorId = "fn-1",
+            BackLinkId = "fnref-1",
+            SourcePageNumber = 1
+        });
+        book.Chapters.Add(chapter);
+
+        await new EpubBuilder().BuildAsync(book, new ConversionOptions(), epubPath);
+        using var archive = ZipFile.OpenRead(epubPath);
+        var xhtml = ReadEntry(archive, "OEBPS/text/chapter001.xhtml");
+
+        Assert.Contains("<strong>đậm</strong>", xhtml);
+        Assert.Contains("<em>nghiêng</em>", xhtml);
+        Assert.Contains("id=\"fnref-1\"", xhtml);
+        Assert.Contains("href=\"#fnref-1\"", xhtml);
+        Assert.DoesNotContain("id=\"fnref-1\" href=\"#fnref-1\"", xhtml);
+        Assert.True((await new EpubValidator().ValidateAsync(epubPath)).IsValid);
+    }
+
+    [Fact]
+    public async Task EpubBuilder_CreatesInlineTocAndUniqueBookIdentifiers()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "PdfToAzw3Tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        var firstPath = Path.Combine(root, "first.epub");
+        var secondPath = Path.Combine(root, "second.epub");
+        var book = new BookDocument { Metadata = new BookMetadata { Title = "Identifiers" } };
+        book.Chapters.Add(new BookChapter { Title = "Chương 1", AnchorId = "chapter-1", SourcePageNumber = 1 });
+        var builder = new EpubBuilder();
+
+        await builder.BuildAsync(book, new ConversionOptions { GenerateTableOfContents = true }, firstPath);
+        await builder.BuildAsync(book, new ConversionOptions { GenerateTableOfContents = true }, secondPath);
+        using var first = ZipFile.OpenRead(firstPath);
+        using var second = ZipFile.OpenRead(secondPath);
+
+        Assert.NotNull(first.GetEntry("OEBPS/text/toc.xhtml"));
+        Assert.Contains("epub:type=\"landmarks\"", ReadEntry(first, "OEBPS/nav.xhtml"));
+        Assert.NotEqual(ReadIdentifier(first), ReadIdentifier(second));
+    }
+
+    [Fact]
+    public async Task EpubValidator_RejectsMissingFootnoteTarget()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "PdfToAzw3Tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        var epubPath = Path.Combine(root, "broken-link.epub");
+        var book = new BookDocument { Metadata = new BookMetadata { Title = "Broken" } };
+        var chapter = new BookChapter { Title = "Chapter", AnchorId = "chapter-1", SourcePageNumber = 1 };
+        var paragraph = new ParagraphBlock { BlockType = LayoutBlockType.Paragraph, Text = "Text¹", SourcePageNumber = 1 };
+        paragraph.FootnoteReferences.Add(new FootnoteReference("¹", "missing-footnote", "fnref-1"));
+        chapter.Blocks.Add(paragraph);
+        book.Chapters.Add(chapter);
+        await new EpubBuilder().BuildAsync(book, new ConversionOptions(), epubPath);
+
+        var validation = await new EpubValidator().ValidateAsync(epubPath);
+
+        Assert.False(validation.IsValid);
+        Assert.Contains(validation.Errors, error => error.Contains("anchor không tồn tại", StringComparison.Ordinal));
+    }
+
+    private static string ReadIdentifier(ZipArchive archive)
+    {
+        var opf = ReadEntry(archive, "OEBPS/content.opf");
+        var start = opf.IndexOf("<dc:identifier id=\"book-id\">", StringComparison.Ordinal) + "<dc:identifier id=\"book-id\">".Length;
+        var end = opf.IndexOf("</dc:identifier>", start, StringComparison.Ordinal);
+        return opf[start..end];
+    }
+
     private static string ReadEntry(ZipArchive archive, string path)
     {
         using var stream = archive.GetEntry(path)!.Open();

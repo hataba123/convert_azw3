@@ -109,6 +109,67 @@ public sealed class LayoutHeuristicsTests
         Assert.Contains(book.Chapters.SelectMany(chapter => chapter.Blocks), block => block is TableBlock table && table.Rows.Count == 3);
     }
 
+    [Fact]
+    public void CrossPageJoiner_JoinsLowercaseContinuationAndRepairsHyphen()
+    {
+        var first = new PdfPageAnalysis { PageNumber = 1, Width = 600, Height = 800 };
+        var second = new PdfPageAnalysis { PageNumber = 2, Width = 600, Height = 800 };
+        first.Blocks.Add(CreateBlock("Một câu chuyện inter-", 40, 0));
+        second.Blocks.Add(CreateBlock("national tiếp tục ở trang sau.", 760, 0));
+        second.Blocks[0].PageNumber = 2;
+
+        var result = CrossPageParagraphJoiner.Join([first, second], new ConversionOptions(), CancellationToken.None);
+
+        Assert.Equal(1, result.Joined);
+        Assert.Equal("Một câu chuyện international tiếp tục ở trang sau.", Assert.Single(first.Blocks).Text);
+        Assert.Empty(second.Blocks);
+        Assert.True(first.Blocks[0].WasJoinedAcrossPage);
+    }
+
+    [Fact]
+    public void CrossPageJoiner_DoesNotJoinDialogueOrCompletedSentence()
+    {
+        var first = new PdfPageAnalysis { PageNumber = 1, Width = 600, Height = 800 };
+        var second = new PdfPageAnalysis { PageNumber = 2, Width = 600, Height = 800 };
+        first.Blocks.Add(CreateBlock("Câu đã kết thúc.", 40, 0));
+        second.Blocks.Add(CreateBlock("— Một lời thoại mới", 760, 0));
+        second.Blocks[0].PageNumber = 2;
+
+        var result = CrossPageParagraphJoiner.Join([first, second], new ConversionOptions(), CancellationToken.None);
+
+        Assert.Equal(0, result.Joined);
+        Assert.Single(first.Blocks);
+        Assert.Single(second.Blocks);
+    }
+
+    [Fact]
+    public void CrossPageJoiner_AutoProfileRecognizesRepeatedTwoColumnLayout()
+    {
+        var pages = Enumerable.Range(1, 10).Select(pageNumber =>
+        {
+            var page = new PdfPageAnalysis { PageNumber = pageNumber, Width = 600, Height = 800 };
+            page.Blocks.Add(new PdfBlock
+            {
+                BlockType = LayoutBlockType.Paragraph,
+                Bounds = new PdfRect(40, 650, 270, 700),
+                Text = "left column",
+                FontSize = 12,
+                PageNumber = pageNumber
+            });
+            page.Blocks.Add(new PdfBlock
+            {
+                BlockType = LayoutBlockType.Paragraph,
+                Bounds = new PdfRect(330, 650, 560, 700),
+                Text = "right column",
+                FontSize = 12,
+                PageNumber = pageNumber
+            });
+            return page;
+        }).ToArray();
+
+        Assert.False(CrossPageParagraphJoiner.IsPredominantlySingleColumn(pages));
+    }
+
     private static PdfBlock CreateBlock(string text, double top, int readingOrder, double left = 80)
     {
         return new PdfBlock

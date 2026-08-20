@@ -39,4 +39,12 @@ public sealed class TextNormalizerTests
         Assert.Equal("Tiếng Việt: Nguyễn Văn Lợi", result);
         Assert.Equal(result.Normalize(NormalizationForm.FormC), result);
     }
+
+    [Fact]
+    public void Normalize_HandlesKindleUnsafeSpacingAndCommonLigatures()
+    {
+        var result = TextNormalizer.Normalize("A\u00A0ﬁne\u202Fﬃction with non‑breaking hyphen");
+
+        Assert.Equal("A fine ffiction with non-breaking hyphen", result);
+    }
 }

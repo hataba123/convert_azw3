@@ -16,8 +16,15 @@ public static partial class TextNormalizer
 
         var normalized = value.Normalize(NormalizationForm.FormC)
             .Replace('\u00AD'.ToString(), string.Empty, StringComparison.Ordinal)
+            .Replace('\u00A0', ' ')
+            .Replace('\u202F', ' ')
+            .Replace('\u3000', ' ')
+            .Replace('\u2011', '-')
             .Replace("ﬁ", "fi", StringComparison.Ordinal)
-            .Replace("ﬂ", "fl", StringComparison.Ordinal);
+            .Replace("ﬂ", "fl", StringComparison.Ordinal)
+            .Replace("ﬀ", "ff", StringComparison.Ordinal)
+            .Replace("ﬃ", "ffi", StringComparison.Ordinal)
+            .Replace("ﬄ", "ffl", StringComparison.Ordinal);
 
         normalized = normalized.Trim(ZeroWidthCharacters.Concat([' ', '\t', '\r', '\n']).ToArray());
         normalized = MultipleWhitespaceRegex().Replace(normalized, " ");

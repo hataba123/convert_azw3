@@ -26,7 +26,17 @@ public sealed partial class BookDocumentBuilder(IHeadingDetector headingDetector
         {
             var footnoteCandidates = page.Blocks
                 .Where(block => block.Bounds.Bottom <= page.Height * 0.28 && TryParseFootnote(block.Text, out _, out _))
-                .ToDictionary(block => block, block => ParseFootnote(block.Text));
+                .Select(block => (Block: block, Footnote: ParseFootnote(block.Text)))
+                .ToArray();
+            var footnoteLinks = footnoteCandidates
+                .Select((item, index) => new FootnoteLink(
+                    item.Block,
+                    item.Footnote.Marker,
+                    item.Footnote.Text,
+                    $"fn-{page.PageNumber}-{index + 1}",
+                    $"fnref-{page.PageNumber}-{index + 1}"))
+                .ToArray();
+            var linkedFootnotes = new HashSet<string>(StringComparer.Ordinal);
             var pageElements = page.Blocks
                 .Select(block => new PageElement(block.Bounds.Top, block, null))
                 .Concat(page.Images.Select(image => new PageElement(image.Bounds.Top, null, image)))
@@ -70,21 +80,19 @@ public sealed partial class BookDocumentBuilder(IHeadingDetector headingDetector
                 }
 
                 var block = element.Block!;
-                if (footnoteCandidates.TryGetValue(block, out var footnote))
+                var footnote = footnoteLinks.FirstOrDefault(item => ReferenceEquals(item.Block, block));
+                if (footnote is not null)
                 {
                     currentChapter ??= CreateDefaultChapter(book, page.PageNumber);
-                    var footnoteIndex = currentChapter.Blocks.OfType<FootnoteBlock>().Count() + 1;
                     var marker = footnote.Marker;
-                    var anchorId = $"fn-{page.PageNumber}-{footnoteIndex}";
-                    var backLinkId = $"fnref-{page.PageNumber}-{footnoteIndex}";
                     currentChapter.Blocks.Add(new FootnoteBlock
                     {
                         BlockType = LayoutBlockType.Footnote,
                         SourcePageNumber = page.PageNumber,
                         Marker = marker,
                         Text = footnote.Text,
-                        AnchorId = anchorId,
-                        BackLinkId = backLinkId
+                        AnchorId = footnote.AnchorId,
+                        BackLinkId = footnote.BackLinkId
                     });
                     continue;
                 }
@@ -151,7 +159,8 @@ public sealed partial class BookDocumentBuilder(IHeadingDetector headingDetector
                         Text = TextNormalizer.Normalize(block.Text),
                         IsCode = isCode
                     };
-                    AddFootnoteReferences(paragraph, page, footnoteCandidates);
+                    paragraph.InlineRuns.AddRange(BuildInlineRuns(block, options.RepairHyphenatedWords));
+                    AddFootnoteReferences(paragraph, footnoteLinks, linkedFootnotes);
                     currentChapter.Blocks.Add(paragraph);
                 }
             }
@@ -187,27 +196,71 @@ public sealed partial class BookDocumentBuilder(IHeadingDetector headingDetector
 
     private static void AddFootnoteReferences(
         ParagraphBlock paragraph,
-        PdfPageAnalysis page,
-        IReadOnlyDictionary<PdfBlock, (string Marker, string Text)> candidates)
+        IReadOnlyList<FootnoteLink> candidates,
+        ISet<string> linkedFootnotes)
     {
         if (candidates.Count == 0)
         {
             return;
         }
 
-        foreach (var candidate in candidates.Values)
+        foreach (var candidate in candidates)
         {
-            if (!ContainsFootnoteMarker(paragraph.Text, candidate.Marker))
+            if (linkedFootnotes.Contains(candidate.BackLinkId) || !ContainsFootnoteMarker(paragraph.Text, candidate.Marker))
             {
                 continue;
             }
 
-            var index = paragraph.FootnoteReferences.Count + 1;
             paragraph.FootnoteReferences.Add(new FootnoteReference(
                 candidate.Marker,
-                $"fn-{page.PageNumber}-{index}",
-                $"fnref-{page.PageNumber}-{index}"));
+                candidate.AnchorId,
+                candidate.BackLinkId));
+            linkedFootnotes.Add(candidate.BackLinkId);
         }
+    }
+
+    private static IReadOnlyList<BookTextRun> BuildInlineRuns(PdfBlock block, bool repairHyphenatedWords)
+    {
+        if (block.Lines.Count == 0)
+        {
+            return [new BookTextRun(TextNormalizer.Normalize(block.Text), block.IsBold, block.IsItalic)];
+        }
+
+        var tokens = new List<BookTextRun>();
+        for (var lineIndex = 0; lineIndex < block.Lines.Count; lineIndex++)
+        {
+            var line = block.Lines[lineIndex];
+            for (var wordIndex = 0; wordIndex < line.Words.Count; wordIndex++)
+            {
+                var word = line.Words[wordIndex];
+                var needsSpace = tokens.Count > 0;
+                if (needsSpace && lineIndex > 0 && wordIndex == 0 && repairHyphenatedWords &&
+                    tokens[^1].Text.EndsWith("-", StringComparison.Ordinal))
+                {
+                    tokens[^1] = tokens[^1] with { Text = tokens[^1].Text[..^1] };
+                    needsSpace = false;
+                }
+
+                var text = (needsSpace ? " " : string.Empty) + TextNormalizer.Normalize(word.Text);
+                var isSuperscript = word.FontSize > 0 && block.FontSize > 0 && word.FontSize < block.FontSize * 0.82 &&
+                                    word.Bounds.Bottom > line.Bounds.Bottom + block.FontSize * 0.12;
+                AddOrMergeRun(tokens, new BookTextRun(text, word.IsBold, word.IsItalic, isSuperscript));
+            }
+        }
+
+        return tokens;
+    }
+
+    private static void AddOrMergeRun(List<BookTextRun> runs, BookTextRun run)
+    {
+        if (runs.Count > 0 && runs[^1].IsBold == run.IsBold && runs[^1].IsItalic == run.IsItalic &&
+            runs[^1].IsSuperscript == run.IsSuperscript)
+        {
+            runs[^1] = runs[^1] with { Text = runs[^1].Text + run.Text };
+            return;
+        }
+
+        runs.Add(run);
     }
 
     private static bool ContainsFootnoteMarker(string text, string marker)
@@ -255,4 +308,6 @@ public sealed partial class BookDocumentBuilder(IHeadingDetector headingDetector
     private static partial Regex FootnoteRegex();
 
     private sealed record PageElement(double Top, PdfBlock? Block, PdfExtractedImage? Image);
+
+    private sealed record FootnoteLink(PdfBlock Block, string Marker, string Text, string AnchorId, string BackLinkId);
 }

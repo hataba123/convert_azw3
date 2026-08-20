@@ -56,6 +56,10 @@ public sealed class PdfBlock
 
     public int PageNumber { get; set; }
 
+    public int EndPageNumber { get; set; }
+
+    public bool WasJoinedAcrossPage { get; set; }
+
     public List<PdfLine> Lines { get; } = [];
 }
 

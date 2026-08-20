@@ -39,8 +39,12 @@ public sealed class ParagraphBlock : BookBlock
 
     public bool IsCode { get; init; }
 
+    public List<BookTextRun> InlineRuns { get; } = [];
+
     public List<FootnoteReference> FootnoteReferences { get; } = [];
 }
+
+public sealed record BookTextRun(string Text, bool IsBold = false, bool IsItalic = false, bool IsSuperscript = false);
 
 public sealed record FootnoteReference(string Marker, string TargetId, string BackLinkId);
 

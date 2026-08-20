@@ -6,6 +6,13 @@ namespace PdfToAzw3.Tests;
 public sealed class CalibreIntegrationTests
 {
     [Fact]
+    public void CalibreService_MapsPaperwhiteToPw3Profile()
+    {
+        Assert.Equal("kindle_pw3", CalibreService.GetOutputProfile(KindleDeviceProfile.Paperwhite));
+        Assert.Equal("kindle_scribe", CalibreService.GetOutputProfile(KindleDeviceProfile.Scribe));
+    }
+
+    [Fact]
     public async Task EbookConversionService_CreatesAzw3WhenCalibreIsInstalled()
     {
         var calibre = new CalibreService();

@@ -91,14 +91,50 @@ public sealed class PdfPigDocumentReader(
         var removal = headerFooterDetector.RemoveRepeatedBlocks(pages, options, cancellationToken);
         warnings.AddRange(removal.Warnings);
 
+        var autoDetectedNovelLayout = options.Profile != ConversionProfile.KindleAuto ||
+                                      CrossPageParagraphJoiner.IsPredominantlySingleColumn(pages);
+        if (!autoDetectedNovelLayout)
+        {
+            warnings.Add(new AnalysisWarning(
+                "Kindle Auto phát hiện bố cục nhiều cột; đã không nối đoạn qua ranh giới trang để tránh đảo nội dung."));
+        }
+
+        var crossPageJoin = CrossPageParagraphJoiner.Join(pages, options, cancellationToken);
+        if (crossPageJoin.Suspected > 0)
+        {
+            warnings.Add(new AnalysisWarning(
+                $"Có {crossPageJoin.Suspected:N0} ranh giới trang có thể còn chia tách đoạn văn; nên kiểm tra preview."));
+        }
+
+        foreach (var page in pages.Where(page => page.Blocks.Count == 0 && page.Images.Count == 0))
+        {
+            warnings.Add(new AnalysisWarning("Trang không có nội dung có thể đọc sau khi phân tích.", page.PageNumber));
+        }
+
+        foreach (var page in pages.Where(page => page.Words.Count is > 0 and < 6 && page.Blocks.Count > 0))
+        {
+            warnings.Add(new AnalysisWarning("Trang có rất ít chữ; nên kiểm tra xem nội dung có bị thiếu hay không.", page.PageNumber));
+        }
+
+        foreach (var page in pages.Where(page => page.Blocks.Any(block => block.Text.Contains('\uFFFD'))))
+        {
+            warnings.Add(new AnalysisWarning("Trang chứa ký tự thay thế Unicode, có thể do lỗi font hoặc encoding.", page.PageNumber, "Error"));
+        }
+
         progress?.Report(new ConversionProgress("Building semantic book model", 0.78));
         var book = bookDocumentBuilder.Build(pages, metadata, options, warnings, cancellationToken);
+        if (pages.Count >= 10 && book.Chapters.Count == 1 && book.Chapters[0].Title == "Nội dung")
+        {
+            var warning = new AnalysisWarning("Chưa nhận diện chắc chắn được chương; mục lục có thể cần kiểm tra lại.");
+            warnings.Add(warning);
+            book.Warnings.Add(warning);
+        }
         var kind = ClassifyDocument(pages);
         var nativeTextPages = pages.Count(page => page.HasNativeText);
         var ocrPages = pages.Count(page => page.OcrApplied);
-        var imageCount = pages.Sum(page => page.Blocks.Count(block => block.BlockType == LayoutBlockType.Image));
+        var imageCount = book.Resources.Count(resource => resource.Id.StartsWith("image-", StringComparison.Ordinal));
         var paragraphs = book.Chapters.Sum(chapter => chapter.Blocks.Count(block => block.BlockType == LayoutBlockType.Paragraph));
-        var quality = CalculateQuality(pages, book, kind);
+        var quality = CalculateQuality(pages, book, kind, crossPageJoin.Suspected);
 
         if (kind == PdfDocumentKind.Scanned && !options.EnableOcrFallback)
         {
@@ -119,6 +155,8 @@ public sealed class PdfPigDocumentReader(
             PageNumbersRemoved = removal.PageNumbersRemoved,
             Paragraphs = paragraphs,
             OcrPages = ocrPages,
+            CrossPageParagraphsJoined = crossPageJoin.Joined,
+            SuspectedSplitParagraphs = crossPageJoin.Suspected,
             DocumentKind = kind,
             Quality = quality
         };
@@ -269,7 +307,8 @@ public sealed class PdfPigDocumentReader(
     private static ConversionQuality CalculateQuality(
         IReadOnlyList<PdfPageAnalysis> pages,
         BookDocument book,
-        PdfDocumentKind kind)
+        PdfDocumentKind kind,
+        int suspectedSplitParagraphs)
     {
         var ocrPercentage = pages.Count == 0 ? 0 : pages.Count(page => page.OcrApplied) * 100d / pages.Count;
         var textConfidence = kind switch
@@ -281,10 +320,16 @@ public sealed class PdfPigDocumentReader(
             PdfDocumentKind.Scanned => 0.15,
             _ => 0.35
         };
-        var readingConfidence = pages.Count == 0 ? 0.0 : pages.Average(page => page.Blocks.Count > 0 ? 0.90 : 0.35);
-        var paragraphConfidence = book.Chapters.Sum(chapter => chapter.Blocks.Count(block => block is ParagraphBlock)) == 0 ? 0.20 : 0.90;
-        var headingConfidence = book.Chapters.Count > 1 ? 0.88 : 0.68;
-        var imageConfidence = 0.75;
+        var emptyPages = pages.Count(page => page.Blocks.Count == 0 && page.Images.Count == 0);
+        var readingConfidence = pages.Count == 0 ? 0.0 : Math.Clamp(1 - emptyPages / (double)pages.Count, 0.2, 0.98);
+        var paragraphCount = book.Chapters.Sum(chapter => chapter.Blocks.Count(block => block is ParagraphBlock));
+        var paragraphConfidence = paragraphCount == 0
+            ? 0.20
+            : Math.Clamp(1 - suspectedSplitParagraphs / (double)Math.Max(1, paragraphCount), 0.45, 0.97);
+        var headingConfidence = book.Chapters.Count > 1 ? 0.90 : Math.Min(0.82, paragraphConfidence);
+        var extractedImages = pages.Sum(page => page.Images.Count);
+        var preservedImages = book.Resources.Count(resource => resource.Id.StartsWith("image-", StringComparison.Ordinal));
+        var imageConfidence = extractedImages == 0 ? 1 : Math.Clamp(preservedImages / (double)extractedImages, 0, 1);
         var score = (int)Math.Round((textConfidence * 0.35 + readingConfidence * 0.20 + paragraphConfidence * 0.20 + headingConfidence * 0.15 + imageConfidence * 0.10) * 100);
         return new ConversionQuality
         {

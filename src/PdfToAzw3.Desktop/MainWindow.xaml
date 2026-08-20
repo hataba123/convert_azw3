@@ -55,6 +55,7 @@
                     </StackPanel>
                     <ListBox Grid.Row="2"
                              ItemsSource="{Binding Chapters}"
+                             SelectedItem="{Binding SelectedChapter, Mode=TwoWay}"
                              SelectedIndex="0"
                              BorderThickness="0"
                              Background="Transparent"
@@ -155,9 +156,16 @@
                                     <ComboBox Margin="0,5,0,0" SelectedValue="{Binding Options.Profile, Mode=TwoWay}" SelectedValuePath="Tag">
                                         <ComboBoxItem Content="Kindle Auto" Tag="KindleAuto" />
                                         <ComboBoxItem Content="Kindle Novel" Tag="KindleNovel" />
-                                        <ComboBoxItem Content="Kindle Technical Book" Tag="KindleTechnicalBook" />
-                                        <ComboBoxItem Content="Preserve Layout" Tag="PreserveLayout" />
+                                        <ComboBoxItem Content="Kindle Technical Book (thử nghiệm)" Tag="KindleTechnicalBook" />
+                                        <ComboBoxItem Content="Preserve Layout (thử nghiệm)" Tag="PreserveLayout" />
                                         <ComboBoxItem Content="Fixed Layout" Tag="FixedLayout" />
+                                    </ComboBox>
+                                    <TextBlock Margin="0,18,0,0" Style="{StaticResource CaptionText}" Text="Thiết bị Kindle" />
+                                    <ComboBox Margin="0,5,0,0" SelectedValue="{Binding Options.TargetDevice, Mode=TwoWay}" SelectedValuePath="Tag">
+                                        <ComboBoxItem Content="Kindle Paperwhite" Tag="Paperwhite" />
+                                        <ComboBoxItem Content="Kindle tiêu chuẩn" Tag="Standard" />
+                                        <ComboBoxItem Content="Kindle Oasis" Tag="Oasis" />
+                                        <ComboBoxItem Content="Kindle Scribe" Tag="Scribe" />
                                     </ComboBox>
                                     <TextBlock Margin="0,18,0,0" Style="{StaticResource CaptionText}" Text="Kiểu paragraph" />
                                     <ComboBox Margin="0,5,0,0" SelectedValue="{Binding Options.ParagraphStyle, Mode=TwoWay}" SelectedValuePath="Tag">
@@ -262,6 +270,7 @@
                 <Button Command="{Binding ConvertCommand}" Style="{StaticResource PrimaryButton}" Content="Convert to AZW3" />
                 <Button Margin="8,0,0,0" Command="{Binding CancelCommand}" Style="{StaticResource SecondaryButton}" Content="Cancel" />
                 <Button Margin="8,0,0,0" Command="{Binding OpenOutputFolderCommand}" Style="{StaticResource SecondaryButton}" Content="Mở thư mục output" />
+                <Button Margin="8,0,0,0" Command="{Binding OpenKindlePreviewerCommand}" Style="{StaticResource SecondaryButton}" Content="Mở Kindle Previewer" />
             </StackPanel>
         </Grid>
     </Grid>

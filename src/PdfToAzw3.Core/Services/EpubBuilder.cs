@@ -42,7 +42,8 @@ public sealed class EpubBuilder : IEpubBuilder
         WriteEntry(archive, "OEBPS/styles/book.css", BuildCss(options));
         WriteEntry(archive, "OEBPS/styles/fixed-layout.css", FixedLayoutCss);
         var resources = book.Resources.ToList();
-        var cover = CreateCoverResource(book.Metadata);
+        var cover = CreateCoverResource(book);
+        var identifier = $"urn:uuid:{Guid.NewGuid():D}";
         if (cover is not null)
         {
             resources.Insert(0, cover);
@@ -51,7 +52,7 @@ public sealed class EpubBuilder : IEpubBuilder
 
         if (options.Profile == ConversionProfile.FixedLayout)
         {
-            return BuildFixedLayoutEpub(archive, book, book.Metadata, resources, cover, fullPath, progress, cancellationToken);
+            return BuildFixedLayoutEpub(archive, book, book.Metadata, resources, cover, identifier, fullPath, progress, cancellationToken);
         }
 
         var chapters = book.Chapters.Count == 0
@@ -73,8 +74,13 @@ public sealed class EpubBuilder : IEpubBuilder
         }
 
         WriteEntry(archive, "OEBPS/nav.xhtml", BuildNavigation(book.Metadata, chapterPaths, options));
-        WriteEntry(archive, "OEBPS/toc.ncx", BuildNcx(book.Metadata, chapterPaths));
-        WriteEntry(archive, "OEBPS/content.opf", BuildContentOpf(book.Metadata, chapterPaths, resources, cover));
+        if (options.GenerateTableOfContents)
+        {
+            WriteEntry(archive, "OEBPS/text/toc.xhtml", BuildInlineTableOfContents(book.Metadata, chapterPaths));
+        }
+
+        WriteEntry(archive, "OEBPS/toc.ncx", BuildNcx(book.Metadata, chapterPaths, identifier));
+        WriteEntry(archive, "OEBPS/content.opf", BuildContentOpf(book.Metadata, chapterPaths, resources, cover, identifier, options.GenerateTableOfContents));
 
         foreach (var resource in resources.Where(resource => cover is null || !ReferenceEquals(resource, cover)))
         {
@@ -92,6 +98,7 @@ public sealed class EpubBuilder : IEpubBuilder
         BookMetadata metadata,
         IReadOnlyList<BookResource> resources,
         BookResource? cover,
+        string identifier,
         string fullPath,
         IProgress<ConversionProgress>? progress,
         CancellationToken cancellationToken)
@@ -122,8 +129,8 @@ public sealed class EpubBuilder : IEpubBuilder
         }
 
         WriteEntry(archive, "OEBPS/nav.xhtml", BuildFixedNavigation(metadata, pagePaths));
-        WriteEntry(archive, "OEBPS/toc.ncx", BuildFixedNcx(metadata, pagePaths));
-        WriteEntry(archive, "OEBPS/content.opf", BuildFixedContentOpf(metadata, pagePaths, resources, cover));
+        WriteEntry(archive, "OEBPS/toc.ncx", BuildFixedNcx(metadata, pagePaths, identifier));
+        WriteEntry(archive, "OEBPS/content.opf", BuildFixedContentOpf(metadata, pagePaths, resources, cover, identifier));
 
         foreach (var resource in resources.Where(resource => cover is null || !ReferenceEquals(resource, cover)))
         {
@@ -157,9 +164,10 @@ public sealed class EpubBuilder : IEpubBuilder
 
     private static string BuildFixedNcx(
         BookMetadata metadata,
-        IReadOnlyList<(FixedLayoutPage Page, string Path, string Id)> pages)
+        IReadOnlyList<(FixedLayoutPage Page, string Path, string Id)> pages,
+        string identifier)
     {
-        var builder = new StringBuilder($"<?xml version=\"1.0\" encoding=\"UTF-8\"?><ncx xmlns=\"http://www.daisy.org/z3986/2005/ncx/\" version=\"2005-1\"><head><meta name=\"dtb:uid\" content=\"book-id\" /></head><docTitle><text>{Escape(metadata.Title)}</text></docTitle><navMap>");
+        var builder = new StringBuilder($"<?xml version=\"1.0\" encoding=\"UTF-8\"?><ncx xmlns=\"http://www.daisy.org/z3986/2005/ncx/\" version=\"2005-1\"><head><meta name=\"dtb:uid\" content=\"{EscapeAttribute(identifier)}\" /></head><docTitle><text>{Escape(metadata.Title)}</text></docTitle><navMap>");
         for (var index = 0; index < pages.Count; index++)
         {
             var item = pages[index];
@@ -174,10 +182,11 @@ public sealed class EpubBuilder : IEpubBuilder
         BookMetadata metadata,
         IReadOnlyList<(FixedLayoutPage Page, string Path, string Id)> pages,
         IReadOnlyList<BookResource> resources,
-        BookResource? cover)
+        BookResource? cover,
+        string identifier)
     {
         var modified = DateTimeOffset.UtcNow.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", System.Globalization.CultureInfo.InvariantCulture);
-        var builder = new StringBuilder($"<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<package xmlns=\"http://www.idpf.org/2007/opf\" prefix=\"rendition: http://www.idpf.org/vocab/rendition/#\" unique-identifier=\"book-id\" version=\"3.0\"><metadata xmlns:dc=\"http://purl.org/dc/elements/1.1/\"><dc:identifier id=\"book-id\">urn:uuid:pdf-to-azw3</dc:identifier><dc:title>{Escape(metadata.Title)}</dc:title><dc:creator>{Escape(metadata.Author)}</dc:creator><dc:language>{DetectLanguage(metadata)}</dc:language><dc:publisher>{Escape(metadata.Publisher)}</dc:publisher><dc:description>{Escape(metadata.Description)}</dc:description><meta property=\"dcterms:modified\">{modified}</meta><meta property=\"rendition:layout\">pre-paginated</meta><meta property=\"rendition:orientation\">auto</meta><meta property=\"rendition:spread\">auto</meta>");
+        var builder = new StringBuilder($"<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<package xmlns=\"http://www.idpf.org/2007/opf\" prefix=\"rendition: http://www.idpf.org/vocab/rendition/#\" unique-identifier=\"book-id\" version=\"3.0\"><metadata xmlns:dc=\"http://purl.org/dc/elements/1.1/\"><dc:identifier id=\"book-id\">{Escape(identifier)}</dc:identifier><dc:title>{Escape(metadata.Title)}</dc:title><dc:creator>{Escape(metadata.Author)}</dc:creator><dc:language>{DetectLanguage(metadata)}</dc:language><dc:publisher>{Escape(metadata.Publisher)}</dc:publisher><dc:description>{Escape(metadata.Description)}</dc:description><meta property=\"dcterms:modified\">{modified}</meta><meta property=\"rendition:layout\">pre-paginated</meta><meta property=\"rendition:orientation\">auto</meta><meta property=\"rendition:spread\">auto</meta>");
         if (cover is not null)
         {
             builder.Append("<meta name=\"cover\" content=\"cover-image\" />");
@@ -209,6 +218,11 @@ public sealed class EpubBuilder : IEpubBuilder
     {
         var language = DetectLanguage(metadata);
         var builder = new StringBuilder();
+        var backlinkIds = chapter.Blocks
+            .OfType<ParagraphBlock>()
+            .SelectMany(paragraph => paragraph.FootnoteReferences)
+            .Select(reference => reference.BackLinkId)
+            .ToHashSet(StringComparer.Ordinal);
         builder.Append($"<?xml version=\"1.0\" encoding=\"utf-8\"?>\n");
         builder.Append($"<html xmlns=\"http://www.w3.org/1999/xhtml\" xmlns:epub=\"http://www.idpf.org/2007/ops\" lang=\"{language}\" xml:lang=\"{language}\">\n<head><title>{Escape(chapter.Title)}</title><link rel=\"stylesheet\" type=\"text/css\" href=\"../styles/book.css\" /></head><body>\n");
         builder.Append($"<section id=\"{EscapeAttribute(chapter.AnchorId)}\"><h1>{Escape(chapter.Title)}</h1>\n");
@@ -225,15 +239,16 @@ public sealed class EpubBuilder : IEpubBuilder
                     builder.Append($"<blockquote><p>{Escape(quote.Text)}</p></blockquote>\n");
                     break;
                 case FootnoteBlock footnote:
-                    builder.Append($"<aside epub:type=\"footnote\" id=\"{EscapeAttribute(footnote.AnchorId)}\"><p><sup>{Escape(footnote.Marker)}</sup> {Escape(footnote.Text)} <a id=\"{EscapeAttribute(footnote.BackLinkId)}\" href=\"#{EscapeAttribute(footnote.BackLinkId)}\">↩</a></p></aside>\n");
+                    var backlink = backlinkIds.Contains(footnote.BackLinkId)
+                        ? $" <a href=\"#{EscapeAttribute(footnote.BackLinkId)}\" aria-label=\"Quay lại nội dung\">↩</a>"
+                        : string.Empty;
+                    builder.Append($"<aside epub:type=\"footnote\" id=\"{EscapeAttribute(footnote.AnchorId)}\"><p><sup>{Escape(footnote.Marker)}</sup> {Escape(footnote.Text)}{backlink}</p></aside>\n");
                     break;
                 case ParagraphBlock paragraph when paragraph.IsCode || paragraph.BlockType == LayoutBlockType.Code:
                     builder.Append($"<pre><code>{Escape(paragraph.Text)}</code></pre>\n");
                     break;
                 case ParagraphBlock paragraph:
-                    var paragraphId = paragraph.FootnoteReferences.FirstOrDefault()?.BackLinkId;
-                    var idAttribute = string.IsNullOrWhiteSpace(paragraphId) ? string.Empty : $" id=\"{EscapeAttribute(paragraphId)}\"";
-                    builder.Append($"<p{idAttribute}>{RenderParagraph(paragraph)}</p>\n");
+                    builder.Append($"<p>{RenderParagraph(paragraph)}</p>\n");
                     break;
                 case ImageBlock image:
                     builder.Append($"<figure><img src=\"../images/{EscapeAttribute(image.ResourceId)}\" alt=\"{EscapeAttribute(image.Caption ?? "Illustration")}\" />");
@@ -288,13 +303,39 @@ public sealed class EpubBuilder : IEpubBuilder
             builder.Append("</li>\n");
         }
 
+        builder.Append("</ol></nav><nav epub:type=\"landmarks\" hidden=\"hidden\"><ol>");
+        if (options.GenerateTableOfContents)
+        {
+            builder.Append("<li><a epub:type=\"toc\" href=\"text/toc.xhtml\">Mục lục</a></li>");
+        }
+
+        if (chapters.Count > 0)
+        {
+            var first = chapters[0];
+            builder.Append($"<li><a epub:type=\"bodymatter\" href=\"text/{Path.GetFileName(first.Path)}#{EscapeAttribute(first.Chapter.AnchorId)}\">Nội dung chính</a></li>");
+        }
+
         builder.Append("</ol></nav></body></html>");
         return builder.ToString();
     }
 
-    private static string BuildNcx(BookMetadata metadata, IReadOnlyList<(BookChapter Chapter, string Path, string Id)> chapters)
+    private static string BuildInlineTableOfContents(
+        BookMetadata metadata,
+        IReadOnlyList<(BookChapter Chapter, string Path, string Id)> chapters)
     {
-        var builder = new StringBuilder($"<?xml version=\"1.0\" encoding=\"UTF-8\"?><ncx xmlns=\"http://www.daisy.org/z3986/2005/ncx/\" version=\"2005-1\"><head><meta name=\"dtb:uid\" content=\"book-id\" /></head><docTitle><text>{Escape(metadata.Title)}</text></docTitle><navMap>");
+        var builder = new StringBuilder($"<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<html xmlns=\"http://www.w3.org/1999/xhtml\" lang=\"{DetectLanguage(metadata)}\" xml:lang=\"{DetectLanguage(metadata)}\"><head><title>Mục lục</title><link rel=\"stylesheet\" type=\"text/css\" href=\"../styles/book.css\" /></head><body><section class=\"inline-toc\"><h1>Mục lục</h1><ol>");
+        foreach (var item in chapters)
+        {
+            builder.Append($"<li><a href=\"{Path.GetFileName(item.Path)}#{EscapeAttribute(item.Chapter.AnchorId)}\">{Escape(item.Chapter.Title)}</a></li>");
+        }
+
+        builder.Append("</ol></section></body></html>");
+        return builder.ToString();
+    }
+
+    private static string BuildNcx(BookMetadata metadata, IReadOnlyList<(BookChapter Chapter, string Path, string Id)> chapters, string identifier)
+    {
+        var builder = new StringBuilder($"<?xml version=\"1.0\" encoding=\"UTF-8\"?><ncx xmlns=\"http://www.daisy.org/z3986/2005/ncx/\" version=\"2005-1\"><head><meta name=\"dtb:uid\" content=\"{EscapeAttribute(identifier)}\" /></head><docTitle><text>{Escape(metadata.Title)}</text></docTitle><navMap>");
         for (var index = 0; index < chapters.Count; index++)
         {
             var item = chapters[index];
@@ -309,16 +350,22 @@ public sealed class EpubBuilder : IEpubBuilder
         BookMetadata metadata,
         IReadOnlyList<(BookChapter Chapter, string Path, string Id)> chapters,
         IReadOnlyList<BookResource> resources,
-        BookResource? cover)
+        BookResource? cover,
+        string identifier,
+        bool includeInlineToc)
     {
         var modified = DateTimeOffset.UtcNow.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", System.Globalization.CultureInfo.InvariantCulture);
-        var builder = new StringBuilder($"<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<package xmlns=\"http://www.idpf.org/2007/opf\" unique-identifier=\"book-id\" version=\"3.0\"><metadata xmlns:dc=\"http://purl.org/dc/elements/1.1/\"><dc:identifier id=\"book-id\">urn:uuid:pdf-to-azw3</dc:identifier><dc:title>{Escape(metadata.Title)}</dc:title><dc:creator>{Escape(metadata.Author)}</dc:creator><dc:language>{DetectLanguage(metadata)}</dc:language><dc:publisher>{Escape(metadata.Publisher)}</dc:publisher><dc:description>{Escape(metadata.Description)}</dc:description><meta property=\"dcterms:modified\">{modified}</meta>");
+        var builder = new StringBuilder($"<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<package xmlns=\"http://www.idpf.org/2007/opf\" unique-identifier=\"book-id\" version=\"3.0\"><metadata xmlns:dc=\"http://purl.org/dc/elements/1.1/\"><dc:identifier id=\"book-id\">{Escape(identifier)}</dc:identifier><dc:title>{Escape(metadata.Title)}</dc:title><dc:creator>{Escape(metadata.Author)}</dc:creator><dc:language>{DetectLanguage(metadata)}</dc:language><dc:publisher>{Escape(metadata.Publisher)}</dc:publisher><dc:description>{Escape(metadata.Description)}</dc:description><meta property=\"dcterms:modified\">{modified}</meta>");
         if (cover is not null)
         {
             builder.Append("<meta name=\"cover\" content=\"cover-image\" />");
         }
 
         builder.Append("</metadata><manifest><item id=\"nav\" properties=\"nav\" href=\"nav.xhtml\" media-type=\"application/xhtml+xml\" /><item id=\"ncx\" href=\"toc.ncx\" media-type=\"application/x-dtbncx+xml\" /><item id=\"css\" href=\"styles/book.css\" media-type=\"text/css\" />");
+        if (includeInlineToc)
+        {
+            builder.Append("<item id=\"inline-toc\" href=\"text/toc.xhtml\" media-type=\"application/xhtml+xml\" />");
+        }
         foreach (var item in chapters)
         {
             builder.Append($"<item id=\"{item.Id}\" href=\"text/{Path.GetFileName(item.Path)}\" media-type=\"application/xhtml+xml\" />");
@@ -331,6 +378,10 @@ public sealed class EpubBuilder : IEpubBuilder
         }
 
         builder.Append("</manifest><spine toc=\"ncx\">");
+        if (includeInlineToc)
+        {
+            builder.Append("<itemref idref=\"inline-toc\" />");
+        }
         foreach (var item in chapters)
         {
             builder.Append($"<itemref idref=\"{item.Id}\" />");
@@ -345,12 +396,12 @@ public sealed class EpubBuilder : IEpubBuilder
         var paragraphRules = options.ParagraphStyle switch
         {
             ParagraphStyle.Document => "margin: 0 0 0.8em 0; text-indent: 0;",
-            ParagraphStyle.Compact => "margin: 0 0 0.35em 0; text-indent: 0.8em;",
-            _ => "margin: 0 0 0.7em 0; text-indent: 1.2em;"
+            ParagraphStyle.Compact => "margin: 0 0 0.2em 0; text-indent: 0.8em;",
+            _ => "margin: 0; text-indent: 1.2em;"
         };
 
         var fixedLayout = options.Profile == ConversionProfile.FixedLayout;
-        return $"body {{ margin: 0; padding: 0 2%; line-height: 1.45; text-align: justify; font-size: 1em; }}\nsection {{ max-width: 42em; margin: 0 auto; }}\np {{ {paragraphRules} }}\nh1 {{ text-align: center; margin: 1.5em 0 1em; page-break-before: {(fixedLayout ? "auto" : "always")}; font-size: 1.7em; }}\nh2 {{ margin: 1.3em 0 0.8em; font-size: 1.35em; }}\nh3, h4 {{ margin: 1em 0 0.6em; font-size: 1.15em; }}\nblockquote {{ margin: 0.9em 1.5em; padding-left: 1em; border-left: 0.2em solid #c7cfdf; }}\npre {{ white-space: pre-wrap; font-family: monospace; margin: 1em 0; padding: 0.8em; background: #f2f4f8; }}\ncode {{ font-family: monospace; }}\nimg {{ display: block; max-width: 100%; height: auto; margin: 1em auto; }}\nfigure {{ margin: 1em 0; text-align: center; }}\nfigcaption {{ margin-top: 0.4em; font-style: italic; text-align: center; }}\ntable {{ border-collapse: collapse; width: 100%; margin: 1em 0; }}\nth, td {{ border: 0.08em solid #aeb8c8; padding: 0.35em; vertical-align: top; }}\n";
+        return $"body {{ margin: 0; padding: 0; }}\nsection {{ margin: 0; }}\np {{ {paragraphRules} }}\nh1 {{ text-align: center; margin: 1.5em 0 1em; page-break-before: {(fixedLayout ? "auto" : "always")}; break-before: {(fixedLayout ? "auto" : "page")}; }}\nh2, h3, h4 {{ text-align: left; page-break-after: avoid; break-after: avoid; }}\nh2 {{ margin: 1.3em 0 0.8em; }}\nh3, h4 {{ margin: 1em 0 0.6em; }}\nblockquote {{ margin: 0.9em 1.5em; padding-left: 1em; }}\npre {{ white-space: pre-wrap; font-family: monospace; margin: 1em 0; }}\ncode {{ font-family: monospace; }}\nimg {{ display: block; max-width: 100%; height: auto; margin: 1em auto; object-fit: contain; }}\nfigure {{ margin: 1em 0; text-align: center; page-break-inside: avoid; break-inside: avoid; }}\nfigcaption {{ margin-top: 0.4em; font-style: italic; text-align: center; text-indent: 0; }}\ntable {{ border-collapse: collapse; width: 100%; margin: 1em 0; }}\nth, td {{ border: 0.08em solid currentColor; padding: 0.35em; vertical-align: top; }}\n.inline-toc ol {{ list-style: none; padding-left: 0; }}\n.inline-toc li {{ margin: 0.45em 0; }}\n";
     }
 
     private static string BuildTable(TableBlock table)
@@ -373,12 +424,61 @@ public sealed class EpubBuilder : IEpubBuilder
 
     private static string RenderParagraph(ParagraphBlock paragraph)
     {
-        var content = Escape(paragraph.Text);
-        foreach (var reference in paragraph.FootnoteReferences)
+        if (paragraph.InlineRuns.Count == 0)
         {
+            return RenderReferences(Escape(paragraph.Text), paragraph.FootnoteReferences, new HashSet<string>(StringComparer.Ordinal), false);
+        }
+
+        var renderedReferences = new HashSet<string>(StringComparer.Ordinal);
+        var builder = new StringBuilder();
+        foreach (var run in paragraph.InlineRuns)
+        {
+            var content = RenderReferences(Escape(run.Text), paragraph.FootnoteReferences, renderedReferences, run.IsSuperscript);
+            if (run.IsBold)
+            {
+                content = $"<strong>{content}</strong>";
+            }
+
+            if (run.IsItalic)
+            {
+                content = $"<em>{content}</em>";
+            }
+
+            if (run.IsSuperscript)
+            {
+                content = $"<sup>{content}</sup>";
+            }
+
+            builder.Append(content);
+        }
+
+        return builder.ToString();
+    }
+
+    private static string RenderReferences(
+        string content,
+        IReadOnlyList<FootnoteReference> references,
+        ISet<string> renderedReferences,
+        bool alreadySuperscript)
+    {
+        foreach (var reference in references)
+        {
+            if (!renderedReferences.Add(reference.BackLinkId))
+            {
+                continue;
+            }
+
             var marker = Escape(reference.Marker);
-            var link = $"<sup><a href=\"#{EscapeAttribute(reference.TargetId)}\" id=\"{EscapeAttribute(reference.BackLinkId)}\">{marker}</a></sup>";
-            content = content.Replace(marker, link, StringComparison.Ordinal);
+            var index = content.IndexOf(marker, StringComparison.Ordinal);
+            if (index < 0)
+            {
+                renderedReferences.Remove(reference.BackLinkId);
+                continue;
+            }
+
+            var anchor = $"<a href=\"#{EscapeAttribute(reference.TargetId)}\" id=\"{EscapeAttribute(reference.BackLinkId)}\">{marker}</a>";
+            var link = alreadySuperscript ? anchor : $"<sup>{anchor}</sup>";
+            content = content.Remove(index, marker.Length).Insert(index, link);
         }
 
         return content;
@@ -418,8 +518,9 @@ public sealed class EpubBuilder : IEpubBuilder
 
     private static string EscapeAttribute(string? value) => Escape(value).Replace("\"", "&quot;", StringComparison.Ordinal);
 
-    private static BookResource? CreateCoverResource(BookMetadata metadata)
+    private static BookResource? CreateCoverResource(BookDocument book)
     {
+        var metadata = book.Metadata;
         if (string.IsNullOrWhiteSpace(metadata.CoverPath) || !File.Exists(metadata.CoverPath))
         {
             return null;
@@ -433,6 +534,13 @@ public sealed class EpubBuilder : IEpubBuilder
             "gif" => "image/gif",
             _ => string.Empty
         };
+
+        var dimensions = TryReadImageDimensions(metadata.CoverPath, extension);
+        if (dimensions is { } size && Math.Max(size.Width, size.Height) < 1200)
+        {
+            book.Warnings.Add(new AnalysisWarning(
+                $"Cover chỉ có {size.Width}×{size.Height} px; nên dùng ảnh có ít nhất một chiều 1.200 px."));
+        }
         if (string.IsNullOrWhiteSpace(mediaType))
         {
             return null;
@@ -445,6 +553,56 @@ public sealed class EpubBuilder : IEpubBuilder
             MediaType = mediaType,
             Content = File.ReadAllBytes(metadata.CoverPath)
         };
+    }
+
+    private static (int Width, int Height)? TryReadImageDimensions(string path, string extension)
+    {
+        using var stream = File.OpenRead(path);
+        using var reader = new BinaryReader(stream);
+        if (extension == "png" && stream.Length >= 24)
+        {
+            stream.Position = 16;
+            return (ReadBigEndianInt32(reader), ReadBigEndianInt32(reader));
+        }
+
+        if (extension is not ("jpg" or "jpeg"))
+        {
+            return null;
+        }
+
+        stream.Position = 2;
+        while (stream.Position + 9 < stream.Length)
+        {
+            if (reader.ReadByte() != 0xFF)
+            {
+                continue;
+            }
+
+            var marker = reader.ReadByte();
+            var length = (reader.ReadByte() << 8) | reader.ReadByte();
+            if (length < 2 || stream.Position + length - 2 > stream.Length)
+            {
+                return null;
+            }
+
+            if (marker is >= 0xC0 and <= 0xC3)
+            {
+                reader.ReadByte();
+                var height = (reader.ReadByte() << 8) | reader.ReadByte();
+                var width = (reader.ReadByte() << 8) | reader.ReadByte();
+                return (width, height);
+            }
+
+            stream.Position += length - 2;
+        }
+
+        return null;
+    }
+
+    private static int ReadBigEndianInt32(BinaryReader reader)
+    {
+        var bytes = reader.ReadBytes(4);
+        return bytes.Length == 4 ? (bytes[0] << 24) | (bytes[1] << 16) | (bytes[2] << 8) | bytes[3] : 0;
     }
 
     private const string ContainerXml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><container version=\"1.0\" xmlns=\"urn:oasis:names:tc:opendocument:xmlns:container\"><rootfiles><rootfile full-path=\"OEBPS/content.opf\" media-type=\"application/oebps-package+xml\" /></rootfiles></container>";

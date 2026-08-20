@@ -103,6 +103,7 @@ public sealed class ParagraphReconstructor : IParagraphReconstructor
             ReadingOrder = source.ReadingOrder,
             PageNumber = source.PageNumber
         };
+        clone.EndPageNumber = source.EndPageNumber == 0 ? source.PageNumber : source.EndPageNumber;
         return clone.WithLines(source.Lines);
     }
 
