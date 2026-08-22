@@ -139,6 +139,31 @@ public sealed class ConversionOptions
     public bool EnhanceScannedPages { get; set; } = true;
 
     public string? CalibreExecutablePath { get; set; }
+
+    public ConversionOptions Clone() => new()
+    {
+        Profile = Profile,
+        ParagraphStyle = ParagraphStyle,
+        TargetDevice = TargetDevice,
+        SmartReflow = SmartReflow,
+        RemoveRepeatedHeaders = RemoveRepeatedHeaders,
+        RemoveRepeatedFooters = RemoveRepeatedFooters,
+        RemovePageNumbers = RemovePageNumbers,
+        RepairHyphenatedWords = RepairHyphenatedWords,
+        GenerateTableOfContents = GenerateTableOfContents,
+        PreserveImages = PreserveImages,
+        DetectChapters = DetectChapters,
+        EnableOcrFallback = EnableOcrFallback,
+        OcrLanguage = OcrLanguage,
+        OcrDpi = OcrDpi,
+        OcrConfidenceThreshold = OcrConfidenceThreshold,
+        FixedLayoutDpi = FixedLayoutDpi,
+        FixedLayoutPresentation = FixedLayoutPresentation,
+        FixedLayoutRegionDpi = FixedLayoutRegionDpi,
+        FixedLayoutRegionOverlap = FixedLayoutRegionOverlap,
+        EnhanceScannedPages = EnhanceScannedPages,
+        CalibreExecutablePath = CalibreExecutablePath
+    };
 }
 
 public sealed class AnalysisSummary

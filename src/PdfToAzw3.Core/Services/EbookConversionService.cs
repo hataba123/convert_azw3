@@ -18,10 +18,28 @@ public sealed class EbookConversionService(
     {
         var fullAzw3Path = Path.GetFullPath(azw3Path);
         var epubPath = Path.ChangeExtension(fullAzw3Path, ".epub");
+        var effectiveOptions = options;
+        if (RequiresFixedLayoutFallback(analysis, options))
+        {
+            effectiveOptions = options.Clone();
+            effectiveOptions.Profile = ConversionProfile.FixedLayout;
+            const string fallbackMessage = "PDF có trang scan chưa đọc được; đã tự chuyển sang Fixed Layout để giữ đủ từng trang.";
+            if (!analysis.Book.Warnings.Any(warning => warning.Message.Equals(fallbackMessage, StringComparison.Ordinal)))
+            {
+                analysis.Book.Warnings.Add(new AnalysisWarning(fallbackMessage));
+            }
+
+            logger?.Warning(fallbackMessage);
+            progress?.Report(new ConversionProgress(
+                "Preparing Fixed Layout",
+                0.80,
+                Detail: fallbackMessage));
+        }
+
         logger?.Info($"Conversion started: epub={epubPath}, azw3={fullAzw3Path}");
         try
         {
-            if (options.Profile == ConversionProfile.FixedLayout)
+            if (effectiveOptions.Profile == ConversionProfile.FixedLayout)
             {
                 if (fixedLayoutPageBuilder is null)
                 {
@@ -32,14 +50,14 @@ public sealed class EbookConversionService(
                     analysis.File.FullPath,
                     analysis.Pages,
                     analysis.Book,
-                    options.FixedLayoutPresentation == FixedLayoutPresentation.OverviewAndRegions
-                        ? options.FixedLayoutRegionDpi
-                        : options.FixedLayoutDpi,
+                    effectiveOptions.FixedLayoutPresentation == FixedLayoutPresentation.OverviewAndRegions
+                        ? effectiveOptions.FixedLayoutRegionDpi
+                        : effectiveOptions.FixedLayoutDpi,
                     progress,
                     cancellationToken).ConfigureAwait(false);
             }
 
-            await epubBuilder.BuildAsync(analysis.Book, options, epubPath, progress, cancellationToken).ConfigureAwait(false);
+            await epubBuilder.BuildAsync(analysis.Book, effectiveOptions, epubPath, progress, cancellationToken).ConfigureAwait(false);
 
             progress?.Report(new ConversionProgress("Validating EPUB", 0.935, Detail: "Kiểm tra EPUB trung gian"));
             var validation = await epubValidator.ValidateAsync(epubPath, cancellationToken).ConfigureAwait(false);
@@ -48,7 +66,7 @@ public sealed class EbookConversionService(
                 throw new InvalidDataException($"EPUB không hợp lệ: {string.Join("; ", validation.Errors)}");
             }
 
-            await calibreService.ConvertAsync(epubPath, fullAzw3Path, options, progress, cancellationToken).ConfigureAwait(false);
+            await calibreService.ConvertAsync(epubPath, fullAzw3Path, effectiveOptions, progress, cancellationToken).ConfigureAwait(false);
             progress?.Report(new ConversionProgress("Finalizing", 1, Detail: "Hoàn tất chuyển đổi"));
             logger?.Info($"Conversion completed: epubBytes={new FileInfo(epubPath).Length}, azw3Bytes={new FileInfo(fullAzw3Path).Length}");
             return new ConversionOutput(
@@ -64,4 +82,9 @@ public sealed class EbookConversionService(
             throw;
         }
     }
+
+    private static bool RequiresFixedLayoutFallback(PdfAnalysisResult analysis, ConversionOptions options) =>
+        options.Profile != ConversionProfile.FixedLayout &&
+        analysis.Pages.Count > 0 &&
+        analysis.Pages.Any(page => page.IsLikelyScanned && !page.HasNativeText && !page.OcrApplied);
 }

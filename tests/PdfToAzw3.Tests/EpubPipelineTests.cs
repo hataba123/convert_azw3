@@ -53,6 +53,23 @@ public sealed class EpubPipelineTests
     }
 
     [Fact]
+    public async Task EpubBuilder_OverwritesExistingOutput()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "PdfToAzw3Tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        var epubPath = Path.Combine(root, "book.epub");
+        await File.WriteAllTextAsync(epubPath, "old output");
+        var book = new BookDocument { Metadata = new BookMetadata { Title = "New output" } };
+        book.Chapters.Add(new BookChapter { Title = "Chapter 1", AnchorId = "chapter-1", SourcePageNumber = 1 });
+
+        await new EpubBuilder().BuildAsync(book, new ConversionOptions(), epubPath);
+
+        using var archive = ZipFile.OpenRead(epubPath);
+        Assert.Equal("application/epub+zip", ReadEntry(archive, "mimetype"));
+        Assert.Contains("New output", ReadEntry(archive, "OEBPS/content.opf"));
+    }
+
+    [Fact]
     public async Task EpubBuilder_RendersFootnoteLinksAndCodeBlocks()
     {
         var root = Path.Combine(Path.GetTempPath(), "PdfToAzw3Tests", Guid.NewGuid().ToString("N"));

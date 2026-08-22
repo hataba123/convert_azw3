@@ -298,6 +298,15 @@ public sealed class MainViewModel : ObservableObject
 
             _analysisResult = result;
             Recommendation = result.Recommendation;
+            var autoSelectedFixedLayout = Options.Profile == ConversionProfile.KindleAuto &&
+                                          result.Recommendation?.Profile == ConversionProfile.FixedLayout &&
+                                          HasUnreadableScannedPage(result);
+            if (autoSelectedFixedLayout)
+            {
+                Options.Profile = ConversionProfile.FixedLayout;
+                OnPropertyChanged(nameof(Options));
+            }
+
             _analysisOptionsSnapshot = AnalysisOptionsSnapshot.Create(Options);
             InputFile = result.File;
             Summary = result.Summary;
@@ -318,9 +327,11 @@ public sealed class MainViewModel : ObservableObject
             IsAnalyzed = true;
             ProgressValue = 1;
             ProgressStage = "Analysis complete";
-            StatusMessage = result.Summary.OcrPages > 0
-                ? $"Đã phân tích {result.Summary.Pages:N0} trang với {result.Summary.OcrPages:N0} trang OCR; chất lượng {result.Summary.Quality.Score}/100."
-                : $"Đã phân tích {result.Summary.Pages:N0} trang với chất lượng {result.Summary.Quality.Score}/100.";
+            StatusMessage = autoSelectedFixedLayout
+                ? $"Đã phân tích {result.Summary.Pages:N0} trang; tự chọn Fixed Layout để giữ đủ trang scan."
+                : result.Summary.OcrPages > 0
+                    ? $"Đã phân tích {result.Summary.Pages:N0} trang với {result.Summary.OcrPages:N0} trang OCR; chất lượng {result.Summary.Quality.Score}/100."
+                    : $"Đã phân tích {result.Summary.Pages:N0} trang với chất lượng {result.Summary.Quality.Score}/100.";
             if (result.Warnings.Count > 0)
             {
                 ErrorMessage = string.Join(Environment.NewLine, result.Warnings.Select(warning => $"• {warning.Message}"));
@@ -464,6 +475,9 @@ public sealed class MainViewModel : ObservableObject
         _conversionCancellation?.Cancel();
         StatusMessage = "Đang dừng tác vụ...";
     }
+
+    private static bool HasUnreadableScannedPage(PdfAnalysisResult result) =>
+        result.Pages.Any(page => page.IsLikelyScanned && !page.HasNativeText && !page.OcrApplied);
 
     private void ChooseCover()
     {

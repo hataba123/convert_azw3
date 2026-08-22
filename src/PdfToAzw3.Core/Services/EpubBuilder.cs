@@ -36,7 +36,8 @@ public sealed class EpubBuilder : IEpubBuilder
 
         Directory.CreateDirectory(directory);
         progress?.Report(new ConversionProgress("Building EPUB", 0.82, Detail: "Tạo cấu trúc EPUB"));
-        using var archive = ZipFile.Open(fullPath, ZipArchiveMode.Create);
+        using var archiveFile = new FileStream(fullPath, FileMode.Create, FileAccess.ReadWrite, FileShare.None);
+        using var archive = new ZipArchive(archiveFile, ZipArchiveMode.Create);
         WriteEntry(archive, "mimetype", "application/epub+zip", CompressionLevel.NoCompression);
         WriteEntry(archive, "META-INF/container.xml", ContainerXml);
         WriteEntry(archive, "OEBPS/styles/book.css", BuildCss(options));
